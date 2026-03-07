@@ -1,0 +1,19 @@
+@page "/test-eventos"
+@rendermode InteractiveServer
+
+<PageTitle>Test Eventos</PageTitle>
+
+<h1>Test de eventos</h1>
+
+<p>Clicks: @clicks</p>
+
+<button class="btn btn-primary" @onclick="Incrementar">Probar evento</button>
+
+@code {
+    private int clicks = 0;
+
+    private void Incrementar()
+    {
+        clicks++;
+    }
+}

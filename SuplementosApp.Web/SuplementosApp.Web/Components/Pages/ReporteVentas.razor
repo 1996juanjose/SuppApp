@@ -1,0 +1,263 @@
+@page "/reporte-ventas"
+@rendermode InteractiveServer
+@using SuplementosApp.Web.Data
+@using SuplementosApp.Web.Services.Interfaces
+@inject IVentaService VentaService
+
+<PageTitle>Reporte de Ventas</PageTitle>
+
+<h1>Reporte de Ventas</h1>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <InputDate class="form-control" @bind-Value="_filtroDesde" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <InputDate class="form-control" @bind-Value="_filtroHasta" />
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary me-2" @onclick="Buscar">Buscar</button>
+                <button class="btn btn-secondary" @onclick="Limpiar">Limpiar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_cargando)
+{
+    <p>Cargando...</p>
+}
+else if (_ventas.Count == 0)
+{
+    <div class="alert alert-info">No hay ventas en el período seleccionado.</div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card text-bg-primary">
+                <div class="card-body">
+                    <div class="fs-6 fw-semibold">Total facturado</div>
+                    <div class="fs-3 fw-bold">S/ @_ventas.Sum(v => v.PrecioVenta).ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-success">
+                <div class="card-body">
+                    <div class="fs-6 fw-semibold">Total cobrado</div>
+                    <div class="fs-3 fw-bold">S/ @_ventas.Sum(v => v.Pagado).ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-warning">
+                <div class="card-body">
+                    <div class="fs-6 fw-semibold">Total deuda</div>
+                    <div class="fs-3 fw-bold">S/ @_ventas.Sum(v => v.Debe).ToString("N2")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-secondary">
+                <div class="card-body">
+                    <div class="fs-6 fw-semibold">Nro. ventas</div>
+                    <div class="fs-3 fw-bold">@_ventas.Count</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Por método de pago</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Método de pago</th>
+                                <th class="text-end">Ventas</th>
+                                <th class="text-end">Facturado</th>
+                                <th class="text-end">Cobrado</th>
+                                <th class="text-end">Deuda</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var g in _porMetodoPago)
+                        {
+                            <tr>
+                                <td>@g.Nombre</td>
+                                <td class="text-end">@g.Cantidad</td>
+                                <td class="text-end">@g.Facturado.ToString("N2")</td>
+                                <td class="text-end">@g.Cobrado.ToString("N2")</td>
+                                <td class="text-end">@g.Deuda.ToString("N2")</td>
+                            </tr>
+                        }
+                        </tbody>
+                        <tfoot class="fw-bold table-light">
+                            <tr>
+                                <td>Total</td>
+                                <td class="text-end">@_porMetodoPago.Sum(g => g.Cantidad)</td>
+                                <td class="text-end">@_porMetodoPago.Sum(g => g.Facturado).ToString("N2")</td>
+                                <td class="text-end">@_porMetodoPago.Sum(g => g.Cobrado).ToString("N2")</td>
+                                <td class="text-end">@_porMetodoPago.Sum(g => g.Deuda).ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Por vendedor</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Vendedor</th>
+                                <th class="text-end">Ventas</th>
+                                <th class="text-end">Facturado</th>
+                                <th class="text-end">Cobrado</th>
+                                <th class="text-end">Deuda</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var g in _porVendedor)
+                        {
+                            <tr>
+                                <td>@g.Nombre</td>
+                                <td class="text-end">@g.Cantidad</td>
+                                <td class="text-end">@g.Facturado.ToString("N2")</td>
+                                <td class="text-end">@g.Cobrado.ToString("N2")</td>
+                                <td class="text-end">@g.Deuda.ToString("N2")</td>
+                            </tr>
+                        }
+                        </tbody>
+                        <tfoot class="fw-bold table-light">
+                            <tr>
+                                <td>Total</td>
+                                <td class="text-end">@_porVendedor.Sum(g => g.Cantidad)</td>
+                                <td class="text-end">@_porVendedor.Sum(g => g.Facturado).ToString("N2")</td>
+                                <td class="text-end">@_porVendedor.Sum(g => g.Cobrado).ToString("N2")</td>
+                                <td class="text-end">@_porVendedor.Sum(g => g.Deuda).ToString("N2")</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header fw-bold">Por estado de venta</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Estado</th>
+                                <th class="text-end">Ventas</th>
+                                <th class="text-end">Facturado</th>
+                                <th class="text-end">Cobrado</th>
+                                <th class="text-end">Deuda</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var g in _porEstado)
+                        {
+                            <tr>
+                                <td>@g.Nombre</td>
+                                <td class="text-end">@g.Cantidad</td>
+                                <td class="text-end">@g.Facturado.ToString("N2")</td>
+                                <td class="text-end">@g.Cobrado.ToString("N2")</td>
+                                <td class="text-end">@g.Deuda.ToString("N2")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Venta> _ventas = new();
+    private List<ResumenVentas> _porMetodoPago = new();
+    private List<ResumenVentas> _porVendedor = new();
+    private List<ResumenVentas> _porEstado = new();
+
+    private bool _cargando = false;
+    private DateTime? _filtroDesde;
+    private DateTime? _filtroHasta;
+
+    private record ResumenVentas(string Nombre, int Cantidad, decimal Facturado, decimal Cobrado, decimal Deuda);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _filtroDesde = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        _filtroHasta = DateTime.Today;
+        await CargarReporte();
+    }
+
+    private async Task Buscar() => await CargarReporte();
+
+    private async Task Limpiar()
+    {
+        _filtroDesde = null;
+        _filtroHasta = null;
+        await CargarReporte();
+    }
+
+    private async Task CargarReporte()
+    {
+        _cargando = true;
+        _ventas = (await VentaService.GetAllAsync(_filtroDesde, _filtroHasta)).ToList();
+        Agrupar();
+        _cargando = false;
+    }
+
+    private void Agrupar()
+    {
+        _porMetodoPago = _ventas
+            .GroupBy(v => v.MetodoPago?.Nombre ?? "Sin definir")
+            .Select(g => new ResumenVentas(
+                g.Key,
+                g.Count(),
+                g.Sum(v => v.PrecioVenta),
+                g.Sum(v => v.Pagado),
+                g.Sum(v => v.Debe)
+            ))
+            .OrderByDescending(g => g.Facturado)
+            .ToList();
+
+        _porVendedor = _ventas
+            .GroupBy(v => v.Vendedor?.Nombre ?? "Sin asignar")
+            .Select(g => new ResumenVentas(
+                g.Key,
+                g.Count(),
+                g.Sum(v => v.PrecioVenta),
+                g.Sum(v => v.Pagado),
+                g.Sum(v => v.Debe)
+            ))
+            .OrderByDescending(g => g.Facturado)
+            .ToList();
+
+        _porEstado = _ventas
+            .GroupBy(v => v.EstadoVenta?.Nombre ?? "Sin estado")
+            .Select(g => new ResumenVentas(
+                g.Key,
+                g.Count(),
+                g.Sum(v => v.PrecioVenta),
+                g.Sum(v => v.Pagado),
+                g.Sum(v => v.Debe)
+            ))
+            .OrderByDescending(g => g.Cantidad)
+            .ToList();
+    }
+}
