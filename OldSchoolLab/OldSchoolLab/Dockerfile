@@ -1,11 +1,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY ["OldSchoolLab.csproj", "."]
-RUN dotnet restore "OldSchoolLab.csproj"
+COPY ["OldSchoolLab/OldSchoolLab.csproj", "OldSchoolLab/"]
+RUN dotnet restore "OldSchoolLab/OldSchoolLab.csproj"
 
 COPY . .
 
+WORKDIR "/src/OldSchoolLab"
 RUN dotnet build "OldSchoolLab.csproj" -c Release -o /app/build
 RUN dotnet publish "OldSchoolLab.csproj" -c Release -o /app/publish
 
