@@ -36,13 +36,13 @@ public class CreateModel(ApplicationDbContext db) : PageModel
         public string Cellphone { get; set; } = string.Empty;
 
         [Display(Name = "Nombre / Ref WA")]
-        public string NameOrReference { get; set; } = string.Empty;
+        public string? NameOrReference { get; set; }
 
         [Display(Name = "Actividad de la llamada")]
-        public string CallActivity { get; set; } = string.Empty;
+        public string? CallActivity { get; set; }
 
         [Display(Name = "DNI")]
-        public string Dni { get; set; } = string.Empty;
+        public string? Dni { get; set; }
 
         [Display(Name = "Producto")]
         public int? ProductId { get; set; }
@@ -56,7 +56,7 @@ public class CreateModel(ApplicationDbContext db) : PageModel
         public decimal PaidAmount { get; set; }
 
         [Display(Name = "Ruta carpeta")]
-        public string FolderPath { get; set; } = string.Empty;
+        public string? FolderPath { get; set; }
     }
 
     public async Task OnGetAsync()
@@ -94,15 +94,15 @@ public class CreateModel(ApplicationDbContext db) : PageModel
             StatusCatalogId = Input.StatusCatalogId,
             RecordDate = Input.RecordDate,
             Cellphone = Input.Cellphone.Trim(),
-            NameOrReference = Input.NameOrReference.Trim(),
-            CallActivity = Input.CallActivity.Trim(),
-            Dni = Input.Dni.Trim(),
+            NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty,
+            CallActivity = Input.CallActivity?.Trim() ?? string.Empty,
+            Dni = Input.Dni?.Trim() ?? string.Empty,
             ProductId = Input.ProductId,
             Quantity = Input.ProductId.HasValue ? Input.Quantity : 1,
             ProductAmount = total,
             PaidAmount = paidAmount,
             BalanceDue = Math.Max(0m, total - paidAmount),
-            FolderPath = Input.FolderPath.Trim(),
+            FolderPath = Input.FolderPath?.Trim() ?? string.Empty,
             CreatedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
             CreatedByUserName = User.Identity?.Name ?? string.Empty
         };

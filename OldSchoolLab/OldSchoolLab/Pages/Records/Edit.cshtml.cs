@@ -36,13 +36,13 @@ public class EditModel(ApplicationDbContext db) : PageModel
         public string Cellphone { get; set; } = string.Empty;
 
         [Display(Name = "Nombre / Ref WA")]
-        public string NameOrReference { get; set; } = string.Empty;
+        public string? NameOrReference { get; set; }
 
         [Display(Name = "Actividad de la llamada")]
-        public string CallActivity { get; set; } = string.Empty;
+        public string? CallActivity { get; set; }
 
         [Display(Name = "DNI")]
-        public string Dni { get; set; } = string.Empty;
+        public string? Dni { get; set; }
 
         [Display(Name = "Producto")]
         public int? ProductId { get; set; }
@@ -56,7 +56,7 @@ public class EditModel(ApplicationDbContext db) : PageModel
         public decimal PaidAmount { get; set; }
 
         [Display(Name = "Ruta carpeta")]
-        public string FolderPath { get; set; } = string.Empty;
+        public string? FolderPath { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync(int id)
@@ -115,15 +115,15 @@ public class EditModel(ApplicationDbContext db) : PageModel
         record.StatusCatalogId = Input.StatusCatalogId;
         record.RecordDate = Input.RecordDate;
         record.Cellphone = Input.Cellphone.Trim();
-        record.NameOrReference = Input.NameOrReference.Trim();
-        record.CallActivity = Input.CallActivity.Trim();
-        record.Dni = Input.Dni.Trim();
+        record.NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty;
+        record.CallActivity = Input.CallActivity?.Trim() ?? string.Empty;
+        record.Dni = Input.Dni?.Trim() ?? string.Empty;
         record.ProductId = Input.ProductId;
         record.Quantity = Input.ProductId.HasValue ? Input.Quantity : 1;
         record.ProductAmount = total;
         record.PaidAmount = paidAmount;
         record.BalanceDue = Math.Max(0m, total - paidAmount);
-        record.FolderPath = Input.FolderPath.Trim();
+        record.FolderPath = Input.FolderPath?.Trim() ?? string.Empty;
 
         await db.SaveChangesAsync();
 
