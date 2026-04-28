@@ -26,8 +26,9 @@ public class CreateModel(ApplicationDbContext db) : PageModel
         [Display(Name = "Estado")]
         public int StatusCatalogId { get; set; }
 
+        [Required]
         [DataType(DataType.Date)]
-        [Display(Name = "Autonom")]
+        [Display(Name = "Fecha")]
         public DateTime RecordDate { get; set; } = DateTime.Today;
 
         [Required]
@@ -61,6 +62,12 @@ public class CreateModel(ApplicationDbContext db) : PageModel
     public async Task OnGetAsync()
     {
         await LoadLookupsAsync();
+
+        var prospectoOption = StatusOptions.FirstOrDefault(x => x.Text == "Prospecto");
+        if (prospectoOption is not null && int.TryParse(prospectoOption.Value, out var prospectoId))
+        {
+            Input.StatusCatalogId = prospectoId;
+        }
     }
 
     public async Task<IActionResult> OnPostAsync()

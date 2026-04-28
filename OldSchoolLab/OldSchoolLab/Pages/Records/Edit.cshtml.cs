@@ -26,8 +26,9 @@ public class EditModel(ApplicationDbContext db) : PageModel
         [Display(Name = "Estado")]
         public int StatusCatalogId { get; set; }
 
+        [Required]
         [DataType(DataType.Date)]
-        [Display(Name = "Autonom")]
+        [Display(Name = "Fecha")]
         public DateTime RecordDate { get; set; }
 
         [Required]
