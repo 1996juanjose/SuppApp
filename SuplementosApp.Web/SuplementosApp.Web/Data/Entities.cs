@@ -141,4 +141,5 @@ public class SeguimientoCliente
     public bool LlamadaRealizada { get; set; }
     public bool Rechazado { get; set; }
     public string? Observacion { get; set; }
+    public DateTime? FechaContacto { get; set; }
 }

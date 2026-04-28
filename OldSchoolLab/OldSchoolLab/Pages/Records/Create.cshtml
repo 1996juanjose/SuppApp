@@ -1,0 +1,169 @@
+@page
+@model OldSchoolLab.Pages.Records.CreateModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "Nuevo registro";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Nuevo registro</h1>
+    <a asp-page="/Records/Index" class="btn btn-outline-secondary">Volver</a>
+</div>
+
+<form method="post" class="card shadow-sm">
+    <div class="card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="Input.StatusCatalogId" class="form-label"></label>
+                <select asp-for="Input.StatusCatalogId" asp-items="Model.StatusOptions" class="form-select">
+                    <option value="">Seleccione</option>
+                </select>
+                <span asp-validation-for="Input.StatusCatalogId" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.RecordDate" class="form-label"></label>
+                <input asp-for="Input.RecordDate" class="form-control" />
+                <span asp-validation-for="Input.RecordDate" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.Cellphone" class="form-label"></label>
+                <input asp-for="Input.Cellphone" class="form-control" />
+                <span asp-validation-for="Input.Cellphone" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.Dni" class="form-label"></label>
+                <input asp-for="Input.Dni" class="form-control" />
+                <span asp-validation-for="Input.Dni" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Input.NameOrReference" class="form-label"></label>
+                <input asp-for="Input.NameOrReference" class="form-control" />
+                <span asp-validation-for="Input.NameOrReference" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Input.CallActivity" class="form-label"></label>
+                <input asp-for="Input.CallActivity" class="form-control" />
+                <span asp-validation-for="Input.CallActivity" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="Input.ProductId" class="form-label"></label>
+                <select asp-for="Input.ProductId" asp-items="Model.ProductOptions" class="form-select" id="productId">
+                    <option value="">Sin producto</option>
+                </select>
+                <span asp-validation-for="Input.ProductId" class="text-danger"></span>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="Input.Quantity" class="form-label"></label>
+                <select asp-for="Input.Quantity" class="form-select" id="quantity" data-current="@Model.Input.Quantity">
+                    <option value="">Seleccione producto</option>
+                </select>
+                <span asp-validation-for="Input.Quantity" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.PaidAmount" class="form-label"></label>
+                <input asp-for="Input.PaidAmount" class="form-control" id="paidAmount" min="0" step="0.01" />
+                <span asp-validation-for="Input.PaidAmount" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.FolderPath" class="form-label"></label>
+                <input asp-for="Input.FolderPath" class="form-control" />
+                <span asp-validation-for="Input.FolderPath" class="text-danger"></span>
+            </div>
+        </div>
+
+        <div class="row mt-4 g-3">
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Valor producto</div>
+                    <div class="fs-4 fw-semibold" id="productAmount">S/ 0.00</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Pagado</div>
+                    <div class="fs-4 fw-semibold" id="paidPreview">S/ 0.00</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Debe</div>
+                    <div class="fs-4 fw-semibold text-danger" id="balanceDue">S/ 0.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+        <a asp-page="/Records/Index" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        const priceLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductPriceLookup));
+        const productId = document.getElementById('productId');
+        const quantity = document.getElementById('quantity');
+        const paidAmount = document.getElementById('paidAmount');
+        const productAmount = document.getElementById('productAmount');
+        const paidPreview = document.getElementById('paidPreview');
+        const balanceDue = document.getElementById('balanceDue');
+        const initialQuantity = quantity.dataset.current;
+
+        function formatCurrency(value) {
+            return `S/ ${Number(value || 0).toFixed(2)}`;
+        }
+
+        function populateQuantities(selectedValue) {
+            const selectedProduct = productId.value;
+            const prices = priceLookup[selectedProduct] ?? {};
+            const quantities = Object.keys(prices)
+                .map(Number)
+                .sort((left, right) => left - right);
+
+            quantity.innerHTML = '';
+
+            if (quantities.length === 0) {
+                quantity.disabled = true;
+                quantity.append(new Option('Seleccione producto', ''));
+                return;
+            }
+
+            quantity.disabled = false;
+
+            for (const item of quantities) {
+                quantity.append(new Option(item.toString(), item.toString()));
+            }
+
+            const preferredValue = selectedValue && prices[selectedValue] !== undefined
+                ? selectedValue
+                : quantities[0].toString();
+
+            quantity.value = preferredValue;
+        }
+
+        function updateAmounts() {
+            const selectedProduct = productId.value;
+            const selectedQuantity = quantity.value;
+            const paid = Number(paidAmount.value || 0);
+            const total = priceLookup[selectedProduct]?.[selectedQuantity] ?? 0;
+            const balance = Math.max(0, total - paid);
+
+            productAmount.textContent = formatCurrency(total);
+            paidPreview.textContent = formatCurrency(paid);
+            balanceDue.textContent = formatCurrency(balance);
+        }
+
+        productId.addEventListener('change', () => {
+            populateQuantities(quantity.value);
+            updateAmounts();
+        });
+        quantity.addEventListener('change', updateAmounts);
+        paidAmount.addEventListener('input', updateAmounts);
+
+        populateQuantities(initialQuantity);
+        updateAmounts();
+    </script>
+}

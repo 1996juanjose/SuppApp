@@ -186,6 +186,7 @@ public class AppDbContext : DbContext
             entity.Property(c => c.Nombre).HasMaxLength(200);
             entity.Property(c => c.Numero).HasMaxLength(50);
             entity.Property(c => c.ProductoInteres).HasMaxLength(200);
+            entity.Property(c => c.FechaContacto).IsRequired(false);
         });
     }
 }

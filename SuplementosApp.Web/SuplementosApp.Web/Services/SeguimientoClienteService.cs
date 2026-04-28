@@ -34,6 +34,12 @@ public class SeguimientoClienteService : ISeguimientoClienteService
         return await _context.SeguimientoClientes.FirstOrDefaultAsync(c => c.Id == id);
     }
 
+    public async Task<bool> ExisteNumeroAsync(string numero)
+    {
+        return await _context.SeguimientoClientes
+            .AnyAsync(c => c.Numero != null && c.Numero == numero);
+    }
+
     public async Task<SeguimientoCliente> CreateAsync(SeguimientoCliente cliente)
     {
         _context.SeguimientoClientes.Add(cliente);
@@ -53,6 +59,8 @@ public class SeguimientoClienteService : ISeguimientoClienteService
         existente.LlamadaRealizada = cliente.LlamadaRealizada;
         existente.Rechazado = cliente.Rechazado;
         existente.Observacion = cliente.Observacion;
+        if (cliente.FechaContacto.HasValue)
+            existente.FechaContacto = cliente.FechaContacto;
 
         await _context.SaveChangesAsync();
         return existente;
