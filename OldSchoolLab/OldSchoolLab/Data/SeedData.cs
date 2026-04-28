@@ -17,6 +17,21 @@ public static class SeedData
 
         await db.Database.EnsureCreatedAsync();
 
+        // Crear tabla AuditLogs si no existe (para bases creadas antes de agregar el modelo)
+        await db.Database.ExecuteSqlRawAsync(@"
+            IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='AuditLogs' AND xtype='U')
+            CREATE TABLE [AuditLogs] (
+                [Id]                 INT            IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                [TableName]          NVARCHAR(50)   NOT NULL DEFAULT '',
+                [RecordId]           INT            NOT NULL DEFAULT 0,
+                [Action]             NVARCHAR(20)   NOT NULL DEFAULT '',
+                [ChangedByUserId]    NVARCHAR(450)  NOT NULL DEFAULT '',
+                [ChangedByUserName]  NVARCHAR(120)  NOT NULL DEFAULT '',
+                [ChangedAt]          DATETIME2      NOT NULL DEFAULT GETDATE(),
+                [Details]            NVARCHAR(MAX)  NULL
+            )");
+
+
         var roles = new[] { "Gerencia", "Gestor", "Monitoreo" };
         foreach (var role in roles)
         {
