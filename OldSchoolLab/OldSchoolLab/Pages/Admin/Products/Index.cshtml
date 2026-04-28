@@ -21,7 +21,7 @@
                 <th>Nombre</th>
                 <th>Estado</th>
                 <th colspan="2">Precios por cantidad</th>
-                <th></th>
+
             </tr>
         </thead>
         <tbody>
@@ -72,9 +72,94 @@
                                 @(product.IsActive ? "Desactivar" : "Activar")
                             </button>
                         </form>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary btn-audit-product"
+                                data-id="@product.Id"
+                                data-nombre="@product.Name">
+                            Auditor&iacute;a
+                        </button>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
 </div>
+
+<!-- Modal Auditoría Producto -->
+<div class="modal fade" id="auditProductModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="auditProductModalLabel">Historial de cambios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="auditProductModalBody">
+                <div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.btn-audit-product').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const nombre = btn.dataset.nombre;
+
+            document.getElementById('auditProductModalLabel').textContent = `Historial · Producto: ${nombre}`;
+            document.getElementById('auditProductModalBody').innerHTML =
+                '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
+
+            const modal = new bootstrap.Modal(document.getElementById('auditProductModal'));
+            modal.show();
+
+            try {
+                const resp = await fetch(`/Admin/Products/Index?handler=Audit&id=${id}`);
+                const logs = await resp.json();
+                renderAuditProduct(logs);
+            } catch {
+                document.getElementById('auditProductModalBody').innerHTML =
+                    '<div class="alert alert-danger">Error al cargar el historial.</div>';
+            }
+        });
+    });
+
+    function renderAuditProduct(logs) {
+        const body = document.getElementById('auditProductModalBody');
+
+        if (!logs || logs.length === 0) {
+            body.innerHTML = '<p class="text-muted text-center">Sin historial de cambios para este producto.</p>';
+            return;
+        }
+
+        let html = '';
+        for (const log of logs) {
+            const badgeColor = log.action === 'Creado' ? 'success' : 'warning';
+            let detailHtml = '';
+            if (log.details) {
+                try {
+                    const data = JSON.parse(log.details);
+                    if (typeof data === 'object' && !Array.isArray(data)) {
+                        let rows = '';
+                        for (const [key, value] of Object.entries(data)) {
+                            rows += `<tr><td class="fw-semibold">${key}</td><td>${JSON.stringify(value)}</td></tr>`;
+                        }
+                        detailHtml = `<table class="table table-sm table-bordered mb-0"><tbody>${rows}</tbody></table>`;
+                    }
+                } catch { detailHtml = `<pre class="bg-light p-2 rounded small">${log.details}</pre>`; }
+            }
+            html += `
+                <div class="border rounded p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><span class="badge text-bg-${badgeColor} me-2">${log.action}</span><strong>${log.changedByUserName}</strong></span>
+                        <span class="text-muted small">${log.changedAt}</span>
+                    </div>
+                    ${detailHtml}
+                </div>`;
+        }
+        body.innerHTML = html;
+    }
+</script>

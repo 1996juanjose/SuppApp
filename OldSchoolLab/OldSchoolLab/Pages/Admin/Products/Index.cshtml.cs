@@ -32,4 +32,21 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         TempData["StatusMessage"] = "Producto actualizado.";
         return RedirectToPage();
     }
+
+    public async Task<IActionResult> OnGetAuditAsync(int id)
+    {
+        var logs = await db.AuditLogs
+            .AsNoTracking()
+            .Where(x => x.TableName == "Producto" && x.RecordId == id)
+            .OrderByDescending(x => x.ChangedAt)
+            .ToListAsync();
+
+        return new JsonResult(logs.Select(x => new
+        {
+            x.Action,
+            x.ChangedByUserName,
+            ChangedAt = x.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+            x.Details
+        }));
+    }
 }
