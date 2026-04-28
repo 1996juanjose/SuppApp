@@ -20,6 +20,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public string? Search { get; set; }
 
     public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor");
+    public bool CanViewAudit => User.IsInRole("Gerencia");
 
     public async Task OnGetAsync()
     {
@@ -53,5 +54,25 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         }
 
         Records = await query.ToListAsync();
+    }
+
+    public async Task<IActionResult> OnGetAuditAsync(int id)
+    {
+        if (!User.IsInRole("Gerencia"))
+            return Forbid();
+
+        var logs = await db.AuditLogs
+            .AsNoTracking()
+            .Where(x => x.TableName == "Registro" && x.RecordId == id)
+            .OrderByDescending(x => x.ChangedAt)
+            .ToListAsync();
+
+        return new JsonResult(logs.Select(x => new
+        {
+            x.Action,
+            x.ChangedByUserName,
+            ChangedAt = x.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+            x.Details
+        }));
     }
 }

@@ -2,6 +2,7 @@
 @model OldSchoolLab.Pages.Records.IndexModel
 @{
     ViewData["Title"] = "Registros";
+    int totalCols = 13 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -61,13 +62,17 @@
                 {
                     <th></th>
                 }
+                @if (Model.CanViewAudit)
+                {
+                    <th></th>
+                }
             </tr>
         </thead>
         <tbody>
         @if (Model.Records.Count == 0)
         {
             <tr>
-                <td colspan="@(Model.CanEdit ? 14 : 13)" class="text-center text-muted">No hay registros.</td>
+                <td colspan="@totalCols" class="text-center text-muted">No hay registros.</td>
             </tr>
         }
         else
@@ -94,9 +99,117 @@
                             <a asp-page="/Records/Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Editar</a>
                         </td>
                     }
+                    @if (Model.CanViewAudit)
+                    {
+                        <td class="text-center">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary btn-audit"
+                                    data-id="@item.Id"
+                                    data-celular="@item.Cellphone"
+                                    title="Ver historial de cambios">
+                                ??
+                            </button>
+                        </td>
+                    }
                 </tr>
             }
         }
         </tbody>
     </table>
 </div>
+
+@if (Model.CanViewAudit)
+{
+    <!-- Modal Auditoría -->
+    <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="auditModalLabel">Historial de cambios</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="auditModalBody">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.btn-audit').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = btn.dataset.id;
+                const celular = btn.dataset.celular;
+
+                document.getElementById('auditModalLabel').textContent = `Historial · Celular: ${celular}`;
+                document.getElementById('auditModalBody').innerHTML =
+                    '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
+
+                const modal = new bootstrap.Modal(document.getElementById('auditModal'));
+                modal.show();
+
+                try {
+                    const resp = await fetch(`/Records/Index?handler=Audit&id=${id}`);
+                    const logs = await resp.json();
+                    renderAudit(logs);
+                } catch {
+                    document.getElementById('auditModalBody').innerHTML =
+                        '<div class="alert alert-danger">Error al cargar el historial.</div>';
+                }
+            });
+        });
+
+        function renderAudit(logs) {
+            const body = document.getElementById('auditModalBody');
+
+            if (!logs || logs.length === 0) {
+                body.innerHTML = '<p class="text-muted text-center">Sin historial de cambios para este registro.</p>';
+                return;
+            }
+
+            let html = '';
+            for (const log of logs) {
+                const badgeColor = log.action === 'Creado' ? 'success' : 'warning';
+                html += `
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>
+                                <span class="badge text-bg-${badgeColor} me-2">${log.action}</span>
+                                <strong>${log.changedByUserName}</strong>
+                            </span>
+                            <span class="text-muted small">${log.changedAt}</span>
+                        </div>
+                        ${renderDetails(log.details)}
+                    </div>`;
+            }
+
+            body.innerHTML = html;
+        }
+
+        function renderDetails(details) {
+            if (!details) return '';
+
+            try {
+                const data = JSON.parse(details);
+
+                if (typeof data !== 'object' || Array.isArray(data)) {
+                    return `<pre class="bg-light p-2 rounded small">${JSON.stringify(data, null, 2)}</pre>`;
+                }
+
+                let rows = '';
+                for (const [key, value] of Object.entries(data)) {
+                    rows += `<tr><td class="fw-semibold text-nowrap">${key}</td><td>${value ?? ''}</td></tr>`;
+                }
+
+                return `<table class="table table-sm table-bordered mb-0"><tbody>${rows}</tbody></table>`;
+            } catch {
+                return `<pre class="bg-light p-2 rounded small">${details}</pre>`;
+            }
+        }
+    </script>
+}
