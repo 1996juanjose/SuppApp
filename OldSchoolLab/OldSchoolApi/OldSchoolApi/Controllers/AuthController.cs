@@ -1,0 +1,93 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using OldSchoolApi.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+namespace OldSchoolApi.Controllers;
+
+[ApiController]
+[Route("api/auth")]
+public class AuthController(ApiDbContext db, IConfiguration config) : ControllerBase
+{
+    public class LoginRequest
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Obtiene un JWT token. Usa las mismas credenciales del sistema web.
+    /// </summary>
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
+            return BadRequest(new { error = "Usuario y contraseña son obligatorios." });
+
+        var normalizedName = request.UserName.ToUpperInvariant();
+
+        var user = await db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.NormalizedUserName == normalizedName);
+
+        if (user is null)
+            return Unauthorized(new { error = "Credenciales inválidas." });
+
+        // Verificar password hash de ASP.NET Core Identity (PasswordHasher v3)
+        var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<object>();
+        var result = hasher.VerifyHashedPassword(new object(), user.PasswordHash ?? string.Empty, request.Password);
+
+        if (result == Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed)
+            return Unauthorized(new { error = "Credenciales inválidas." });
+
+        // Obtener roles del usuario
+        var roles = await (
+            from ur in db.UserRoles
+            join r in db.Roles on ur.RoleId equals r.Id
+            where ur.UserId == user.Id
+            select r.Name
+        ).ToListAsync();
+
+        var token = GenerateJwt(user.Id, user.UserName ?? string.Empty, roles);
+
+        return Ok(new
+        {
+            token,
+            userName = user.UserName,
+            roles,
+            expiresIn = $"{config["Jwt:ExpiresInHours"]}h"
+        });
+    }
+
+    private string GenerateJwt(string userId, string userName, List<string?> roles)
+    {
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId),
+            new(JwtRegisteredClaimNames.UniqueName, userName),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        foreach (var role in roles.Where(r => r is not null))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role!));
+        }
+
+        var hours = int.TryParse(config["Jwt:ExpiresInHours"], out var h) ? h : 24;
+
+        var token = new JwtSecurityToken(
+            issuer: config["Jwt:Issuer"],
+            audience: config["Jwt:Audience"],
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(hours),
+            signingCredentials: creds);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+}
