@@ -28,6 +28,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/AccessDenied";
 });
 
+builder.Services.AddControllers();
 builder.Services.AddScoped<IAuditService, AuditService>();
 
 builder.Services.AddRazorPages(options =>
@@ -58,5 +59,6 @@ app.UseAuthorization();
 app.MapStaticAssets();
 app.MapRazorPages()
    .WithStaticAssets();
+app.MapControllers();
 
 app.Run();
