@@ -5,13 +5,14 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
+using OldSchoolLab.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 
 namespace OldSchoolLab.Pages.Records;
 
 [Authorize(Roles = "Gerencia,Gestor")]
-public class CreateModel(ApplicationDbContext db) : PageModel
+public class CreateModel(ApplicationDbContext db, IAuditService audit) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -109,6 +110,20 @@ public class CreateModel(ApplicationDbContext db) : PageModel
 
         db.CustomerRecords.Add(record);
         await db.SaveChangesAsync();
+
+        await audit.LogAsync("Registro", record.Id, "Creado",
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
+            User.Identity?.Name ?? string.Empty,
+            new
+            {
+                Celular = record.Cellphone,
+                Fecha = record.RecordDate.ToString("yyyy-MM-dd"),
+                EstadoId = record.StatusCatalogId,
+                ProductoId = record.ProductId,
+                Cantidad = record.Quantity,
+                Pagado = record.PaidAmount,
+                Debe = record.BalanceDue
+            });
 
         TempData["StatusMessage"] = "Registro creado correctamente.";
         return RedirectToPage("/Records/Index");

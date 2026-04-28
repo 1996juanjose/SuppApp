@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolLab.Data;
+using OldSchoolLab.Services;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace OldSchoolLab.Pages.Records;
 
 [Authorize(Roles = "Gerencia,Gestor")]
-public class EditModel(ApplicationDbContext db) : PageModel
+public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -112,6 +114,28 @@ public class EditModel(ApplicationDbContext db) : PageModel
         var total = productAmount ?? 0m;
         var paidAmount = Math.Max(0m, Input.PaidAmount);
 
+        var cambios = new Dictionary<string, string>();
+        if (record.StatusCatalogId != Input.StatusCatalogId)
+            cambios["Estado"] = $"{record.StatusCatalogId} ? {Input.StatusCatalogId}";
+        if (record.RecordDate.Date != Input.RecordDate.Date)
+            cambios["Fecha"] = $"{record.RecordDate:yyyy-MM-dd} ? {Input.RecordDate:yyyy-MM-dd}";
+        if (record.Cellphone != Input.Cellphone.Trim())
+            cambios["Celular"] = $"{record.Cellphone} ? {Input.Cellphone.Trim()}";
+        if (record.Dni != (Input.Dni?.Trim() ?? string.Empty))
+            cambios["DNI"] = $"{record.Dni} ? {Input.Dni?.Trim()}";
+        if (record.NameOrReference != (Input.NameOrReference?.Trim() ?? string.Empty))
+            cambios["Nombre/Ref"] = $"{record.NameOrReference} ? {Input.NameOrReference?.Trim()}";
+        if (record.CallActivity != (Input.CallActivity?.Trim() ?? string.Empty))
+            cambios["Actividad"] = $"{record.CallActivity} ? {Input.CallActivity?.Trim()}";
+        if (record.ProductId != Input.ProductId)
+            cambios["Producto"] = $"{record.ProductId} ? {Input.ProductId}";
+        if (record.Quantity != Input.Quantity)
+            cambios["Cantidad"] = $"{record.Quantity} ? {Input.Quantity}";
+        if (record.PaidAmount != paidAmount)
+            cambios["Pagado"] = $"{record.PaidAmount} ? {paidAmount}";
+        if (record.FolderPath != (Input.FolderPath?.Trim() ?? string.Empty))
+            cambios["Ruta"] = $"{record.FolderPath} ? {Input.FolderPath?.Trim()}";
+
         record.StatusCatalogId = Input.StatusCatalogId;
         record.RecordDate = Input.RecordDate;
         record.Cellphone = Input.Cellphone.Trim();
@@ -126,6 +150,14 @@ public class EditModel(ApplicationDbContext db) : PageModel
         record.FolderPath = Input.FolderPath?.Trim() ?? string.Empty;
 
         await db.SaveChangesAsync();
+
+        if (cambios.Count > 0)
+        {
+            await audit.LogAsync("Registro", record.Id, "Actualizado",
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
+                User.Identity?.Name ?? string.Empty,
+                cambios);
+        }
 
         TempData["StatusMessage"] = "Registro actualizado correctamente.";
         return RedirectToPage("/Records/Index");

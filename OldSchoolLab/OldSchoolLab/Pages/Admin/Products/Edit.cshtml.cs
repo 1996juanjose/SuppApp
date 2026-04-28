@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
+using OldSchoolLab.Services;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 namespace OldSchoolLab.Pages.Admin.Products;
 
 [Authorize(Roles = "Gerencia")]
-public class EditModel(ApplicationDbContext db) : PageModel
+public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -132,6 +134,24 @@ public class EditModel(ApplicationDbContext db) : PageModel
         }
 
         await db.SaveChangesAsync();
+
+        var savedId = Input.Id == 0
+            ? db.Products.OrderByDescending(x => x.Id).Select(x => x.Id).FirstOrDefault()
+            : Input.Id;
+
+        await audit.LogAsync("Producto", savedId,
+            Input.Id == 0 ? "Creado" : "Actualizado",
+            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
+            User.Identity?.Name ?? string.Empty,
+            new
+            {
+                Nombre = Input.Name.Trim(),
+                Activo = Input.IsActive,
+                Precios = Input.Prices
+                    .Where(p => !p.Delete)
+                    .Select(p => new { p.Quantity, p.Price })
+            });
+
         TempData["StatusMessage"] = "Producto guardado correctamente.";
         return RedirectToPage("Index");
     }
