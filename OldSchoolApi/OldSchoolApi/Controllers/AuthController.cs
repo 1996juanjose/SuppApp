@@ -36,14 +36,12 @@ public class AuthController(ApiDbContext db, IConfiguration config) : Controller
         if (user is null)
             return Unauthorized(new { error = "Credenciales inválidas." });
 
-        // Verificar password hash de ASP.NET Core Identity (PasswordHasher v3)
         var hasher = new Microsoft.AspNetCore.Identity.PasswordHasher<object>();
         var result = hasher.VerifyHashedPassword(new object(), user.PasswordHash ?? string.Empty, request.Password);
 
         if (result == Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed)
             return Unauthorized(new { error = "Credenciales inválidas." });
 
-        // Obtener roles del usuario
         var roles = await (
             from ur in db.UserRoles
             join r in db.Roles on ur.RoleId equals r.Id

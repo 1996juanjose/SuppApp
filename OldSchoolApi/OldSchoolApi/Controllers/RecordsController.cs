@@ -82,7 +82,6 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
         if (string.IsNullOrWhiteSpace(celular))
             return BadRequest(new { error = "El campo Celular no tiene un formato válido." });
 
-        // Regla principal: si ya existe el celular ? no modificar
         var existe = await db.CustomerRecords
             .AsNoTracking()
             .AnyAsync(x => x.Cellphone
@@ -101,7 +100,6 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
             });
         }
 
-        // Resolver estado por nombre
         var estadoNombre = NormalizeStatusName(request.Estado);
         var estadoNombreNormalizado = estadoNombre.ToUpperInvariant();
 
@@ -117,7 +115,6 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
         if (status is null)
             return BadRequest(new { error = "No se encontró un estado válido en el sistema." });
 
-        // Resolver fecha
         var fecha = DateTime.Today;
         if (!string.IsNullOrWhiteSpace(request.AutoCont)
             && DateTime.TryParse(request.AutoCont, out var fechaParsed))
@@ -125,7 +122,6 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
             fecha = fechaParsed.Date;
         }
 
-        // Resolver producto y precio
         int? productId = null;
         decimal productAmount = 0m;
 

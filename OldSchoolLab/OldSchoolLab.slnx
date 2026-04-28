@@ -1,3 +1,4 @@
-<Solution>
+﻿<Solution>
   <Project Path="OldSchoolLab/OldSchoolLab.csproj" />
+  <Project Path="../OldSchoolApi/OldSchoolApi/OldSchoolApi.csproj" />
 </Solution>

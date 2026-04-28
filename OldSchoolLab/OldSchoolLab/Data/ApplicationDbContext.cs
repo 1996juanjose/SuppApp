@@ -45,6 +45,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasPrecision(10, 2);
 
         builder.Entity<CustomerRecord>()
+            .Property(x => x.RecordDate)
+            .HasColumnType("date");
+
+        builder.Entity<AuditLog>()
+            .Property(x => x.ChangedAt)
+            .HasColumnType("timestamp without time zone");
+
+        builder.Entity<CustomerRecord>()
             .HasOne(x => x.StatusCatalog)
             .WithMany(x => x.CustomerRecords)
             .HasForeignKey(x => x.StatusCatalogId)

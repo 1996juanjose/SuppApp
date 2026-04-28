@@ -1,6 +1,29 @@
 @OldSchoolApi_HostAddress = http://localhost:5158
 
-GET {{OldSchoolApi_HostAddress}}/weatherforecast/
+GET {{OldSchoolApi_HostAddress}}/
 Accept: application/json
+
+###
+
+POST {{OldSchoolApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "userName": "ADMIN",
+  "password": "ADMIN"
+}
+
+###
+
+POST {{OldSchoolApi_HostAddress}}/api/records/n8n
+Content-Type: application/json
+X-Api-Key: CAMBIAR-ESTA-APIKEY-N8N
+
+{
+  "celular": "987654321",
+  "estado": "Prospecto",
+  "autoCont": "2025-01-15",
+  "nombre": "Juan Perez"
+}
 
 ###
