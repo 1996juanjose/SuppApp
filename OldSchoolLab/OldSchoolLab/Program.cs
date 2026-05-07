@@ -4,6 +4,8 @@ using Microsoft.Extensions.FileProviders;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
 using OldSchoolLab.Services;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +36,9 @@ builder.Services.AddScoped<IPaymentProofStorage, PaymentProofStorage>();
 builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
 builder.Services.AddHttpContextAccessor();
 
+builder.Services.AddSingleton<HtmlEncoder>(
+    HtmlEncoder.Create(UnicodeRanges.All));
+
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/");
@@ -52,6 +57,20 @@ var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "storage", 
 Directory.CreateDirectory(companyLogosPath);
 
 await SeedData.InitializeAsync(app.Services);
+
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.OnStarting(() =>
+    {
+        if (ctx.Response.ContentType?.StartsWith("text/html") == true
+            && !ctx.Response.ContentType.Contains("charset"))
+        {
+            ctx.Response.ContentType += "; charset=utf-8";
+        }
+        return Task.CompletedTask;
+    });
+    await next();
+});
 
 if (!app.Environment.IsDevelopment())
 {
