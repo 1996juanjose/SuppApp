@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolLab.Data;
+using OldSchoolLab.Services;
 
 namespace OldSchoolLab.Pages.Admin.AuditLog;
 
@@ -18,7 +19,12 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         FilterTable = table;
         FilterUser = user;
 
+        var companyId = User.GetCompanyId();
+
         var query = db.AuditLogs.AsNoTracking().AsQueryable();
+
+        if (companyId.HasValue)
+            query = query.Where(x => x.CompanyId == companyId.Value);
 
         if (!string.IsNullOrWhiteSpace(table))
             query = query.Where(x => x.TableName == table);

@@ -10,7 +10,7 @@
     <a asp-page="/Records/Index" class="btn btn-outline-secondary">Volver</a>
 </div>
 
-<form method="post" class="card shadow-sm">
+<form method="post" enctype="multipart/form-data" class="card shadow-sm">
     <div class="card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -67,6 +67,12 @@
                 <span asp-validation-for="Input.PaidAmount" class="text-danger"></span>
             </div>
             <div class="col-md-3">
+                <label asp-for="InitialPaymentProofFile" class="form-label">Comprobante inicial</label>
+                <input asp-for="InitialPaymentProofFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                <div class="form-text">Opcional. Máximo 1 MB.</div>
+                <span asp-validation-for="InitialPaymentProofFile" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
                 <label asp-for="Input.FolderPath" class="form-label"></label>
                 <input asp-for="Input.FolderPath" class="form-control" />
                 <span asp-validation-for="Input.FolderPath" class="text-danger"></span>
@@ -116,6 +122,10 @@
             return `S/ ${Number(value || 0).toFixed(2)}`;
         }
 
+        function parseDecimal(value) {
+            return Number.parseFloat((value ?? '0').toString().replace(',', '.')) || 0;
+        }
+
         function populateQuantities(selectedValue) {
             const selectedProduct = productId.value;
             const prices = priceLookup[selectedProduct] ?? {};
@@ -147,7 +157,7 @@
         function updateAmounts() {
             const selectedProduct = productId.value;
             const selectedQuantity = quantity.value;
-            const paid = Number(paidAmount.value || 0);
+            const paid = parseDecimal(paidAmount.value);
             const total = priceLookup[selectedProduct]?.[selectedQuantity] ?? 0;
             const balance = Math.max(0, total - paid);
 

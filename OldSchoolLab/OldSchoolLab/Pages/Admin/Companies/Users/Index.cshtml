@@ -1,0 +1,69 @@
+@page "{companyId:int}"
+@model OldSchoolLab.Pages.Admin.Companies.Users.IndexModel
+@{
+    ViewData["Title"] = $"Usuarios - {Model.Company.Name}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+<div>
+    @if (!string.IsNullOrWhiteSpace(Model.Company.LogoPath))
+    {
+        <img src="@Model.Company.LogoPath" alt="@Model.Company.Name" class="img-thumbnail mb-2" style="max-height:64px;" />
+    }
+    <h1 class="h3 mb-0">Usuarios de empresa</h1>
+    <p class="text-muted mb-0">@Model.Company.Name</p>
+</div>
+    <div class="d-flex gap-2">
+        <a asp-page="/Admin/Companies/Edit" asp-route-id="@Model.Company.Id" class="btn btn-outline-secondary">Volver a empresa</a>
+        <a asp-page="Edit" asp-route-companyId="@Model.Company.Id" class="btn btn-primary">Nuevo usuario</a>
+    </div>
+</div>
+
+@if (TempData["StatusMessage"] is string message)
+{
+    <div class="alert alert-success">@message</div>
+}
+
+<div class="table-responsive">
+    <table class="table table-bordered table-striped align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Users.Count == 0)
+        {
+            <tr>
+                <td colspan="4" class="text-center text-muted">No hay usuarios registrados para esta empresa.</td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td class="fw-semibold">@user.UserName</td>
+                    <td>@user.RoleName</td>
+                    <td>
+                        @if (user.IsActive)
+                        {
+                            <span class="badge text-bg-success">Activo</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactivo</span>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        <a asp-page="Edit" asp-route-companyId="@Model.Company.Id" asp-route-id="@user.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                    </td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>

@@ -1,4 +1,5 @@
-﻿<!DOCTYPE html>
+﻿@using OldSchoolLab.Services
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -23,6 +24,12 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-page="/Records/Index">Registros</a>
                         </li>
+                        @if (User.IsInRole("SuperAdmin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Companies/Index">Empresas</a>
+                            </li>
+                        }
                         @if (User.IsInRole("Gerencia"))
                         {
                             <li class="nav-item">
@@ -36,6 +43,15 @@
                     <ul class="navbar-nav">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
+                            var companyName = User.GetCompanyName();
+                            var companyLogo = User.GetCompanyLogoPath();
+                            <li class="nav-item d-flex align-items-center me-2">
+                                @if (!string.IsNullOrWhiteSpace(companyLogo))
+                                {
+                                    <img src="@companyLogo" alt="Logo" class="rounded me-2" style="width:32px;height:32px;object-fit:cover;" />
+                                }
+                                <span class="nav-link text-muted px-0">@(string.IsNullOrWhiteSpace(companyName) ? "Sin empresa" : companyName)</span>
+                            </li>
                             <li class="nav-item">
                                 <span class="nav-link text-muted">@User.Identity.Name</span>
                             </li>

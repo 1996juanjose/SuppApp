@@ -2,7 +2,7 @@
 @model OldSchoolLab.Pages.Records.IndexModel
 @{
     ViewData["Title"] = "Registros";
-    int totalCols = 13 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0);
+    int totalCols = 15 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -16,23 +16,38 @@
     }
 </div>
 
-<form method="get" class="row g-3 mb-4">
-    <div class="col-md-4">
-        <label class="form-label">Estado</label>
-        <select asp-for="StatusId" class="form-select">
-            <option value="">Todos</option>
-            @foreach (var status in Model.Statuses)
-            {
-                <option value="@status.Id">@status.Name</option>
-            }
-        </select>
+<form method="get" class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <select asp-for="StatusId" class="form-select">
+                    <option value="">Todos</option>
+                    @foreach (var status in Model.Statuses)
+                    {
+                        <option value="@status.Id">@status.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Search" class="form-label">Buscar</label>
+                <input asp-for="Search" class="form-control" placeholder="Celular, nombre, DNI o actividad" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="FromDate" class="form-label">Fecha desde</label>
+                <input asp-for="FromDate" type="date" class="form-control" />
+            </div>
+            <div class="col-md-3">
+                <label asp-for="ToDate" class="form-label">Fecha hasta</label>
+                <input asp-for="ToDate" type="date" class="form-control" />
+            </div>
+        </div>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Search" class="form-label">Buscar</label>
-        <input asp-for="Search" class="form-control" placeholder="Celular, nombre, DNI o actividad" />
-    </div>
-    <div class="col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-outline-primary w-100">Filtrar</button>
+    <div class="card-footer d-flex flex-wrap justify-content-end gap-2">
+        <a asp-page="/Records/Index" class="btn btn-outline-secondary">Limpiar</a>
+        <button type="submit" class="btn btn-outline-primary">Filtrar</button>
+        <button type="button" id="btnExportFiltered" class="btn btn-success">Exportar filtrados (.csv)</button>
+        <button type="button" id="btnExportProspects" class="btn btn-warning">Exportar prospectos (.csv)</button>
     </div>
 </form>
 
@@ -40,6 +55,27 @@
 {
     <div class="alert alert-success">@message</div>
 }
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="border rounded p-3 bg-light h-100">
+            <div class="text-muted small">Registros filtrados</div>
+            <div class="fs-4 fw-semibold">@Model.TotalFilteredRecords</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="border rounded p-3 bg-light h-100">
+            <div class="text-muted small">Suma de pagos</div>
+            <div class="fs-4 fw-semibold text-success">@($"S/ {Model.TotalPaidAmount:0.00}")</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="border rounded p-3 bg-light h-100">
+            <div class="text-muted small">Suma por cobrar</div>
+            <div class="fs-4 fw-semibold text-danger">@($"S/ {Model.TotalBalanceDue:0.00}")</div>
+        </div>
+    </div>
+</div>
 
 <div class="table-responsive">
     <table class="table table-striped table-bordered align-middle">
@@ -56,6 +92,8 @@
                 <th>Valor</th>
                 <th>Pagado</th>
                 <th>Debe</th>
+                <th>Pagos</th>
+                <th>Últ. pago</th>
                 <th>Ruta carpeta</th>
                 <th>Usuario</th>
                 @if (Model.CanEdit)
@@ -89,8 +127,18 @@
                     <td>@item.Product?.Name</td>
                     <td>@item.Quantity</td>
                     <td>@($"S/ {item.ProductAmount:0.00}")</td>
-                    <td>@($"S/ {item.PaidAmount:0.00}")</td>
-                    <td>@($"S/ {item.BalanceDue:0.00}")</td>
+                    <td>@($"S/ {item.ActivePaidAmount:0.00}")</td>
+                    <td>@($"S/ {item.CalculatedBalanceDue:0.00}")</td>
+                    <td>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-info btn-payments"
+                                data-id="@item.Id"
+                                data-celular="@item.Cellphone"
+                                title="Ver pagos en popup">
+                            @item.Payments.Count(x => !x.IsReversed)
+                        </button>
+                    </td>
+                    <td>@(item.Payments.Any(x => !x.IsReversed) ? item.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd") : "-")</td>
                     <td>@item.FolderPath</td>
                     <td>@item.CreatedByUserName</td>
                     @if (Model.CanEdit)
@@ -118,9 +166,130 @@
     </table>
 </div>
 
+<div class="modal fade" id="paymentsModal" tabindex="-1" aria-labelledby="paymentsModalLabel" aria-hidden="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentsModalLabel">Historial de pagos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="paymentsModalBody">
+                <div class="text-center py-3">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="paymentImageModal" tabindex="-1" aria-labelledby="paymentImageModalLabel" aria-hidden="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentImageModalLabel">Comprobante</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="paymentImagePreview" src="" alt="Comprobante" class="img-fluid rounded" />
+            </div>
+            <div class="modal-footer">
+                <a id="paymentImageOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pestaña</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.btn-payments').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const id = btn.dataset.id;
+            const celular = btn.dataset.celular;
+
+            document.getElementById('paymentsModalLabel').textContent = `Pagos · Celular: ${celular}`;
+            document.getElementById('paymentsModalBody').innerHTML =
+                '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
+
+            const modal = new bootstrap.Modal(document.getElementById('paymentsModal'));
+            modal.show();
+
+            try {
+                const resp = await fetch(`/Records/Index?handler=Payments&id=${id}`);
+                const payments = await resp.json();
+                renderPayments(payments);
+            } catch {
+                document.getElementById('paymentsModalBody').innerHTML =
+                    '<div class="alert alert-danger">Error al cargar los pagos.</div>';
+            }
+        });
+    });
+
+    function renderPayments(payments) {
+        const body = document.getElementById('paymentsModalBody');
+
+        if (!payments || payments.length === 0) {
+            body.innerHTML = '<p class="text-muted text-center">Sin pagos registrados para este registro.</p>';
+            return;
+        }
+
+        const rows = payments.map(payment => {
+            const statusHtml = payment.isReversed
+                ? `<div><span class="badge text-bg-danger">Extornado</span><div class="small text-muted mt-1">${payment.reversedByUserName ?? ''} ${payment.reversedAt ?? ''}</div></div>`
+                : '<span class="badge text-bg-success">Activo</span>';
+
+            const proofHtml = payment.proofImagePath
+                ? `<button type="button" class="btn btn-sm btn-outline-secondary btn-payment-proof" data-url="${payment.proofImagePath}">Ver</button>`
+                : '<span class="text-muted">Sin comprobante</span>';
+
+            return `
+                <tr>
+                    <td>${payment.paymentDate}</td>
+                    <td>${payment.createdAt}</td>
+                    <td>S/ ${Number(payment.amount || 0).toFixed(2)}</td>
+                    <td>${statusHtml}</td>
+                    <td>${payment.createdByUserName ?? ''}</td>
+                    <td>${proofHtml}</td>
+                </tr>`;
+        }).join('');
+
+        body.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha pago</th>
+                            <th>Registrado</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th>Usuario</th>
+                            <th>Comprobante</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+    }
+
+    document.getElementById('paymentsModalBody').addEventListener('click', event => {
+        const button = event.target.closest('.btn-payment-proof');
+        if (!button) {
+            return;
+        }
+
+        const imageUrl = button.dataset.url;
+        document.getElementById('paymentImagePreview').src = imageUrl;
+        document.getElementById('paymentImageOpenLink').href = imageUrl;
+
+        const modal = new bootstrap.Modal(document.getElementById('paymentImageModal'));
+        modal.show();
+    });
+</script>
+
 @if (Model.CanViewAudit)
 {
-    <!-- Modal Auditoría -->
     <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
@@ -141,6 +310,32 @@
     </div>
 
     <script>
+        (function () {
+            function buildExportUrl(handler) {
+                var form = document.querySelector('form[method="get"]');
+                var params = new URLSearchParams();
+                params.set('handler', handler);
+                form.querySelectorAll('select, input').forEach(function (el) {
+                    if (el.name && el.value) params.set(el.name, el.value);
+                });
+                return '/Records?' + params.toString();
+            }
+
+            var btnFiltered = document.getElementById('btnExportFiltered');
+            if (btnFiltered) {
+                btnFiltered.addEventListener('click', function () {
+                    window.location.href = buildExportUrl('ExportFiltered');
+                });
+            }
+
+            var btnProspects = document.getElementById('btnExportProspects');
+            if (btnProspects) {
+                btnProspects.addEventListener('click', function () {
+                    window.location.href = buildExportUrl('ExportProspects');
+                });
+            }
+        })();
+
         document.querySelectorAll('.btn-audit').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const id = btn.dataset.id;
@@ -213,3 +408,4 @@
         }
     </script>
 }
+

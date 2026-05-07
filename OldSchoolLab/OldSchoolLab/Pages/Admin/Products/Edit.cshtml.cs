@@ -48,6 +48,12 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 
     public async Task<IActionResult> OnGetAsync(int? id)
     {
+        var companyId = User.GetCompanyId();
+        if (!companyId.HasValue)
+        {
+            return Forbid();
+        }
+
         if (id is null)
         {
             Input = new InputModel { IsActive = true };
@@ -57,7 +63,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
         var product = await db.Products
             .AsNoTracking()
             .Include(x => x.Prices.OrderBy(p => p.Quantity))
-            .FirstOrDefaultAsync(x => x.Id == id);
+            .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId.Value);
 
         if (product is null) return NotFound();
 
@@ -79,12 +85,19 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
+        var companyId = User.GetCompanyId();
+        if (!companyId.HasValue)
+        {
+            return Forbid();
+        }
+
         if (!ModelState.IsValid) return Page();
 
         if (Input.Id == 0)
         {
             var product = new Product
             {
+                CompanyId = companyId.Value,
                 Name = Input.Name.Trim(),
                 IsActive = Input.IsActive
             };
@@ -100,7 +113,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
         {
             var product = await db.Products
                 .Include(x => x.Prices)
-                .FirstOrDefaultAsync(x => x.Id == Input.Id);
+                .FirstOrDefaultAsync(x => x.Id == Input.Id && x.CompanyId == companyId.Value);
 
             if (product is null) return NotFound();
 

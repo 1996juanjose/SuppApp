@@ -6,6 +6,10 @@ public class CustomerRecord
 {
     public int Id { get; set; }
 
+    public int CompanyId { get; set; }
+
+    public Company Company { get; set; } = default!;
+
     public int StatusCatalogId { get; set; }
 
     public StatusCatalog StatusCatalog { get; set; } = default!;
@@ -47,4 +51,10 @@ public class CustomerRecord
 
     [MaxLength(120)]
     public string CreatedByUserName { get; set; } = string.Empty;
+
+    public ICollection<CustomerRecordPayment> Payments { get; set; } = new List<CustomerRecordPayment>();
+
+    public decimal ActivePaidAmount => Payments.Where(x => !x.IsReversed).Sum(x => x.Amount);
+
+    public decimal CalculatedBalanceDue => Math.Max(0m, ProductAmount - ActivePaidAmount);
 }

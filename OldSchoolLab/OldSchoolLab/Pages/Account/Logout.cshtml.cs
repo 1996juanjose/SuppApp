@@ -9,9 +9,10 @@ namespace OldSchoolLab.Pages.Account;
 [Authorize]
 public class LogoutModel(SignInManager<ApplicationUser> signInManager) : PageModel
 {
-    public IActionResult OnGet()
+    public async Task<IActionResult> OnGetAsync()
     {
-        return RedirectToPage("/Index");
+        await signInManager.SignOutAsync();
+        return RedirectToPage("/Account/Login");
     }
 
     public async Task<IActionResult> OnPostAsync()

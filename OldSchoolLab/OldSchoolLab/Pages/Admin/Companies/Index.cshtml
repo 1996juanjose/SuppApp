@@ -1,0 +1,65 @@
+@page
+@model OldSchoolLab.Pages.Admin.Companies.IndexModel
+@{
+    ViewData["Title"] = "Empresas";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Empresas</h1>
+    <a asp-page="Edit" class="btn btn-primary">Nueva empresa</a>
+</div>
+
+@if (TempData["StatusMessage"] is string message)
+{
+    <div class="alert alert-success">@message</div>
+}
+
+<div class="table-responsive">
+    <table class="table table-bordered table-striped align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Logo</th>
+                <th>Empresa</th>
+                <th>Estado</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Companies.Count == 0)
+        {
+            <tr>
+                <td colspan="4" class="text-center text-muted">No hay empresas registradas.</td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var company in Model.Companies)
+            {
+                <tr>
+                    <td style="width:80px;">
+                        @if (!string.IsNullOrWhiteSpace(company.LogoPath))
+                        {
+                            <img src="@company.LogoPath" alt="@company.Name" class="img-thumbnail" style="width:56px;height:56px;object-fit:cover;" />
+                        }
+                    </td>
+                    <td class="fw-semibold">@company.Name</td>
+                    <td>
+                        @if (company.IsActive)
+                        {
+                            <span class="badge text-bg-success">Activa</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactiva</span>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        <a asp-page="Edit" asp-route-id="@company.Id" class="btn btn-sm btn-outline-primary">Editar</a>
+                        <a asp-page="/Admin/Companies/Users/Index" asp-route-companyId="@company.Id" class="btn btn-sm btn-outline-secondary">Usuarios</a>
+                    </td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>

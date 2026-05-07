@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
+using OldSchoolLab.Services;
+using System.Text;
 
 namespace OldSchoolLab.Pages.Records;
 
@@ -19,23 +21,146 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public DateTime? FromDate { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public DateTime? ToDate { get; set; }
+
+    public decimal TotalPaidAmount { get; private set; }
+    public decimal TotalBalanceDue { get; private set; }
+    public int TotalFilteredRecords { get; private set; }
+
     public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor");
     public bool CanViewAudit => User.IsInRole("Gerencia");
 
     public async Task OnGetAsync()
     {
-        Statuses = await db.Statuses
-            .AsNoTracking()
-            .OrderBy(x => x.SortOrder)
-            .ThenBy(x => x.Name)
+        await LoadStatusesAsync();
+
+        Records = await BuildFilteredRecordsQuery()
+            .OrderByDescending(x => x.RecordDate)
+            .ThenByDescending(x => x.Id)
             .ToListAsync();
+
+        TotalFilteredRecords = Records.Count;
+        TotalPaidAmount = Records.Sum(x => x.ActivePaidAmount);
+        TotalBalanceDue = Records
+            .Where(x => x.StatusCatalog.Name == "Cliente" || x.StatusCatalog.Name == "Clientes")
+            .Sum(x => x.CalculatedBalanceDue);
+    }
+
+    public async Task<IActionResult> OnGetExportFilteredAsync()
+    {
+        var records = await BuildFilteredRecordsQuery()
+            .OrderByDescending(x => x.RecordDate)
+            .ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        return BuildExcelResult(records,
+            $"registros-filtrados-{DateTime.Now:yyyyMMdd-HHmmss}.csv",
+            "Registros filtrados");
+    }
+
+    public async Task<IActionResult> OnGetExportProspectsAsync()
+    {
+        var companyId = User.GetCompanyId();
 
         var query = db.CustomerRecords
             .AsNoTracking()
             .Include(x => x.StatusCatalog)
             .Include(x => x.Product)
+            .Include(x => x.Payments)
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => x.StatusCatalog.Name == "Prospecto");
+
+        if (FromDate.HasValue)
+        {
+            query = query.Where(x => x.RecordDate >= FromDate.Value.Date);
+        }
+
+        if (ToDate.HasValue)
+        {
+            query = query.Where(x => x.RecordDate <= ToDate.Value.Date);
+        }
+
+        var records = await query
             .OrderByDescending(x => x.RecordDate)
             .ThenByDescending(x => x.Id)
+            .ToListAsync();
+
+        return BuildExcelResult(records,
+            $"prospectos-{DateTime.Now:yyyyMMdd-HHmmss}.csv",
+            "Prospectos por rango de fechas");
+    }
+
+    public async Task<IActionResult> OnGetAuditAsync(int id)
+    {
+        if (!User.IsInRole("Gerencia"))
+            return Forbid();
+
+        var logs = await db.AuditLogs
+            .AsNoTracking()
+            .Where(x => x.TableName == "Registro" && x.RecordId == id)
+            .Where(x => !User.GetCompanyId().HasValue || x.CompanyId == User.GetCompanyId().Value)
+            .OrderByDescending(x => x.ChangedAt)
+            .ToListAsync();
+
+        return new JsonResult(logs.Select(x => new
+        {
+            x.Action,
+            x.ChangedByUserName,
+            ChangedAt = x.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+            x.Details
+        }));
+    }
+
+    public async Task<IActionResult> OnGetPaymentsAsync(int id)
+    {
+        var payments = await db.CustomerRecordPayments
+            .AsNoTracking()
+            .Where(x => x.CustomerRecordId == id)
+            .Where(x => !User.GetCompanyId().HasValue || x.CustomerRecord.CompanyId == User.GetCompanyId().Value)
+            .OrderByDescending(x => x.PaymentDate)
+            .ThenByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        return new JsonResult(payments.Select(x => new
+        {
+            x.Id,
+            PaymentDate = x.PaymentDate.ToString("yyyy-MM-dd"),
+            CreatedAt = x.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+            amount = x.Amount,
+            x.CreatedByUserName,
+            x.ProofImagePath,
+            x.IsReversed,
+            ReversedAt = x.ReversedAt?.ToString("yyyy-MM-dd HH:mm:ss"),
+            x.ReversedByUserName
+        }));
+    }
+
+    private async Task LoadStatusesAsync()
+    {
+        var companyId = User.GetCompanyId();
+
+        Statuses = await db.Statuses
+            .AsNoTracking()
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .OrderBy(x => x.SortOrder)
+            .ThenBy(x => x.Name)
+            .ToListAsync();
+    }
+
+    private IQueryable<CustomerRecord> BuildFilteredRecordsQuery()
+    {
+        var companyId = User.GetCompanyId();
+
+        var query = db.CustomerRecords
+            .AsNoTracking()
+            .Include(x => x.StatusCatalog)
+            .Include(x => x.Product)
+            .Include(x => x.Payments)
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
             .AsQueryable();
 
         if (StatusId.HasValue)
@@ -53,26 +178,63 @@ public class IndexModel(ApplicationDbContext db) : PageModel
                 x.CallActivity.Contains(term));
         }
 
-        Records = await query.ToListAsync();
+        if (FromDate.HasValue)
+        {
+            query = query.Where(x => x.RecordDate >= FromDate.Value.Date);
+        }
+
+        if (ToDate.HasValue)
+        {
+            query = query.Where(x => x.RecordDate <= ToDate.Value.Date);
+        }
+
+        return query;
     }
 
-    public async Task<IActionResult> OnGetAuditAsync(int id)
+    private FileContentResult BuildExcelResult(IReadOnlyCollection<CustomerRecord> records, string fileName, string title)
     {
-        if (!User.IsInRole("Gerencia"))
-            return Forbid();
+        var sb = new StringBuilder();
 
-        var logs = await db.AuditLogs
-            .AsNoTracking()
-            .Where(x => x.TableName == "Registro" && x.RecordId == id)
-            .OrderByDescending(x => x.ChangedAt)
-            .ToListAsync();
+        sb.AppendLine(CsvRow("Estado", "Fecha", "Celular", "Nombre / Ref WA", "Actividad",
+            "DNI", "Producto", "Cantidad", "Valor", "Pagado", "Debe",
+            "Pagos activos", "\u00daltimo pago", "Ruta carpeta", "Usuario"));
 
-        return new JsonResult(logs.Select(x => new
+        foreach (var r in records)
         {
-            x.Action,
-            x.ChangedByUserName,
-            ChangedAt = x.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-            x.Details
+            var lastPayment = r.Payments.Any(x => !x.IsReversed)
+                ? r.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd")
+                : string.Empty;
+
+            sb.AppendLine(CsvRow(
+                r.StatusCatalog.Name,
+                r.RecordDate.ToString("yyyy-MM-dd"),
+                r.Cellphone,
+                r.NameOrReference,
+                r.CallActivity,
+                r.Dni,
+                r.Product?.Name ?? string.Empty,
+                r.Quantity.ToString(),
+                r.ProductAmount.ToString("0.00"),
+                r.ActivePaidAmount.ToString("0.00"),
+                r.CalculatedBalanceDue.ToString("0.00"),
+                r.Payments.Count(x => !x.IsReversed).ToString(),
+                lastPayment,
+                r.FolderPath,
+                r.CreatedByUserName));
+        }
+
+        var csvFileName = System.IO.Path.ChangeExtension(fileName, ".csv");
+        var bytes = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", csvFileName);
+    }
+
+    private static string CsvRow(params string[] fields)
+    {
+        return string.Join(",", fields.Select(f =>
+        {
+            var v = (f ?? string.Empty).Replace("\"", "\"\"");
+            return v.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0 ? $"\"{ v}\"" : v;
         }));
     }
 }
+

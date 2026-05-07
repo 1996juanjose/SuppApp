@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
 using OldSchoolLab.Services;
@@ -29,6 +30,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IPaymentProofStorage, PaymentProofStorage>();
+builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddRazorPages(options =>
 {
@@ -42,6 +46,11 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+var paymentProofsPath = Path.Combine(app.Environment.ContentRootPath, "storage", "payment-proofs");
+Directory.CreateDirectory(paymentProofsPath);
+var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "storage", "company-logos");
+Directory.CreateDirectory(companyLogosPath);
+
 await SeedData.InitializeAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
@@ -51,6 +60,16 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(paymentProofsPath),
+    RequestPath = "/payment-proofs"
+});
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(companyLogosPath),
+    RequestPath = "/company-logos"
+});
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

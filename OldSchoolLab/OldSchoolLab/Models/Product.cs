@@ -6,6 +6,10 @@ public class Product
 {
     public int Id { get; set; }
 
+    public int CompanyId { get; set; }
+
+    public Company Company { get; set; } = default!;
+
     [Required]
     [MaxLength(80)]
     public string Name { get; set; } = string.Empty;

@@ -1,0 +1,65 @@
+@page "{id:int?}"
+@model OldSchoolLab.Pages.Admin.Companies.EditModel
+@{
+    ViewData["Title"] = Model.Input.Id == 0 ? "Nueva empresa" : "Editar empresa";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">@ViewData["Title"]</h1>
+    <a asp-page="Index" class="btn btn-outline-secondary">Volver</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card shadow-sm">
+    <input asp-for="Input.Id" type="hidden" />
+    <div class="card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="Input.Name" class="form-label"></label>
+                <input asp-for="Input.Name" class="form-control" />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="form-check mb-2">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label"></label>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="LogoFile" class="form-label">Logo</label>
+                <input asp-for="LogoFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml" />
+                <div class="form-text">Opcional. Máximo 2 MB.</div>
+                <span asp-validation-for="LogoFile" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                @if (!string.IsNullOrWhiteSpace(Model.Input.LogoPath))
+                {
+                    <label class="form-label d-block">Vista previa</label>
+                    <img src="@Model.Input.LogoPath" alt="Logo" class="img-thumbnail" style="max-height:120px;" />
+                }
+            </div>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+        <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </div>
+</form>
+
+@if (Model.Input.Id > 0)
+{
+    <div class="card shadow-sm mt-4">
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="h5 mb-1">Usuarios de la empresa</h2>
+                <p class="text-muted mb-0">Crea usuarios y asigna roles como `AdminEmpresa`, `Gerencia`, `Gestor` o `Monitoreo`.</p>
+            </div>
+            <a asp-page="/Admin/Companies/Users/Index" asp-route-companyId="@Model.Input.Id" class="btn btn-outline-primary">Administrar usuarios</a>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

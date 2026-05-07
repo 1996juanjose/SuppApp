@@ -1,0 +1,59 @@
+@page "{companyId:int}/{id?}"
+@model OldSchoolLab.Pages.Admin.Companies.Users.EditModel
+@{
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.Input.Id) ? "Nuevo usuario" : "Editar usuario";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+<div>
+    @if (!string.IsNullOrWhiteSpace(Model.Company.LogoPath))
+    {
+        <img src="@Model.Company.LogoPath" alt="@Model.Company.Name" class="img-thumbnail mb-2" style="max-height:64px;" />
+    }
+    <h1 class="h3 mb-0">@ViewData["Title"]</h1>
+    <p class="text-muted mb-0">Empresa: @Model.Company.Name</p>
+</div>
+    <a asp-page="Index" asp-route-companyId="@Model.Company.Id" class="btn btn-outline-secondary">Volver</a>
+</div>
+
+<form method="post" class="card shadow-sm">
+    <input asp-for="Input.Id" type="hidden" />
+    <div class="card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label asp-for="Input.UserName" class="form-label"></label>
+                <input asp-for="Input.UserName" class="form-control" />
+                <span asp-validation-for="Input.UserName" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Input.RoleName" class="form-label"></label>
+                <select asp-for="Input.RoleName" asp-items="Model.RoleOptions" class="form-select">
+                    <option value="">Seleccione</option>
+                </select>
+                <span asp-validation-for="Input.RoleName" class="text-danger"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Input.Password" class="form-label"></label>
+                <input asp-for="Input.Password" class="form-control" />
+                <div class="form-text">En edición, dejar vacío para mantener la contraseña actual.</div>
+                <span asp-validation-for="Input.Password" class="text-danger"></span>
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <div class="form-check mb-2">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label"></label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+        <a asp-page="Index" asp-route-companyId="@Model.Company.Id" class="btn btn-outline-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

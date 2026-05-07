@@ -15,6 +15,14 @@
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
                     <div class="mb-3">
+                        <label asp-for="Input.CompanyKey" class="form-label"></label>
+                        <select asp-for="Input.CompanyKey" asp-items="Model.CompanyOptions" class="form-select">
+                            <option value="">Seleccione</option>
+                        </select>
+                        <span asp-validation-for="Input.CompanyKey" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
                         <label asp-for="Input.UserName" class="form-label"></label>
                         <input asp-for="Input.UserName" class="form-control" />
                         <span asp-validation-for="Input.UserName" class="text-danger"></span>

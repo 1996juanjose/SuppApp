@@ -6,6 +6,10 @@ public class AuditLog
 {
     public int Id { get; set; }
 
+    public int? CompanyId { get; set; }
+
+    public Company? Company { get; set; }
+
     [MaxLength(50)]
     public string TableName { get; set; } = string.Empty;
 

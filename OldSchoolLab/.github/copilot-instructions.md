@@ -11,4 +11,5 @@
 ## Project-Specific Rules
 - Deploy `OldSchoolLab` as the web project only; the nested `OldSchoolApi` folder should not exist as the API is a separate project.
 - Configure the projects to use PostgreSQL instead of SQL Server.
-- For `OldSchoolApi`, the Docker container should expose port `8085` instead of `8080`.
+- For `OldSchoolApi`, the Docker container should expose port `8080`.
+- For `OldSchoolLab`, the Docker container should expose port `8085`.

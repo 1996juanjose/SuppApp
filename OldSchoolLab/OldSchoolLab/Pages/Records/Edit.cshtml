@@ -12,6 +12,7 @@
 
 <form method="post" class="card shadow-sm">
     <input asp-for="Input.Id" type="hidden" />
+    <input asp-for="Input.PaidAmount" type="hidden" id="paidAmount" />
     <div class="card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -63,11 +64,6 @@
                 <span asp-validation-for="Input.Quantity" class="text-danger"></span>
             </div>
             <div class="col-md-3">
-                <label asp-for="Input.PaidAmount" class="form-label"></label>
-                <input asp-for="Input.PaidAmount" class="form-control" id="paidAmount" min="0" step="0.01" />
-                <span asp-validation-for="Input.PaidAmount" class="text-danger"></span>
-            </div>
-            <div class="col-md-3">
                 <label asp-for="Input.FolderPath" class="form-label"></label>
                 <input asp-for="Input.FolderPath" class="form-control" />
                 <span asp-validation-for="Input.FolderPath" class="text-danger"></span>
@@ -101,6 +97,127 @@
     </div>
 </form>
 
+<div class="row mt-4 g-4">
+    <div class="col-lg-4">
+        <form method="post" asp-page-handler="AddPayment" asp-route-id="@Model.Input.Id" enctype="multipart/form-data" class="card shadow-sm">
+            <div class="card-header">
+                <strong>Agregar pago</strong>
+            </div>
+            <div class="card-body">
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                <div class="mb-3">
+                    <label asp-for="PaymentInput.Amount" class="form-label"></label>
+                    <input asp-for="PaymentInput.Amount" class="form-control" min="0.01" step="0.01" />
+                    <span asp-validation-for="PaymentInput.Amount" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="PaymentProofFile" class="form-label">Comprobante</label>
+                    <input asp-for="PaymentProofFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
+                    <div class="form-text">Opcional. Máximo 1 MB. La fecha del pago se registra automáticamente.</div>
+                    <span asp-validation-for="PaymentProofFile" class="text-danger"></span>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-end">
+                <button type="submit" class="btn btn-success">Agregar pago</button>
+            </div>
+        </form>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Historial de pagos</strong>
+                <span class="badge text-bg-secondary">@Model.Payments.Count pago(s)</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha pago</th>
+                                <th>Registrado</th>
+                                <th>Monto</th>
+                                <th>Estado</th>
+                                <th>Usuario</th>
+                                <th>Comprobante</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @if (Model.Payments.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">No hay pagos registrados.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var payment in Model.Payments)
+                            {
+                                <tr>
+                                    <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@payment.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@($"S/ {payment.Amount:0.00}")</td>
+                                    <td>
+                                        @if (payment.IsReversed)
+                                        {
+                                            <div>
+                                                <span class="badge text-bg-danger">Extornado</span>
+                                                <div class="small text-muted mt-1">@payment.ReversedByUserName @payment.ReversedAt?.ToString("yyyy-MM-dd HH:mm")</div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-success">Activo</span>
+                                        }
+                                    </td>
+                                    <td>@payment.CreatedByUserName</td>
+                                    <td>
+                                        @if (string.IsNullOrWhiteSpace(payment.ProofImagePath))
+                                        {
+                                            <span class="text-muted">Sin comprobante</span>
+                                        }
+                                        else
+                                        {
+                                            <a href="@payment.ProofImagePath" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver</a>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (!payment.IsReversed)
+                                        {
+                                            <form method="post" asp-page-handler="ReversePayment" asp-route-id="@Model.Input.Id" asp-route-paymentId="@payment.Id" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Extornar este pago?');">Extornar</button>
+                                            </form>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="paymentProofModal" tabindex="-1" aria-labelledby="paymentProofModalLabel" aria-hidden="true" data-bs-keyboard="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentProofModalLabel">Comprobante</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="paymentProofPreview" src="" alt="Comprobante" class="img-fluid rounded" />
+            </div>
+            <div class="modal-footer">
+                <a id="paymentProofOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pestaña</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
@@ -115,6 +232,10 @@
 
         function formatCurrency(value) {
             return `S/ ${Number(value || 0).toFixed(2)}`;
+        }
+
+        function parseDecimal(value) {
+            return Number.parseFloat((value ?? '0').toString().replace(',', '.')) || 0;
         }
 
         function populateQuantities(selectedValue) {
@@ -148,7 +269,7 @@
         function updateAmounts() {
             const selectedProduct = productId.value;
             const selectedQuantity = quantity.value;
-            const paid = Number(paidAmount.value || 0);
+            const paid = parseDecimal(paidAmount.value);
             const total = priceLookup[selectedProduct]?.[selectedQuantity] ?? 0;
             const balance = Math.max(0, total - paid);
 
@@ -163,6 +284,17 @@
         });
         quantity.addEventListener('change', updateAmounts);
         paidAmount.addEventListener('input', updateAmounts);
+
+        document.querySelectorAll('.btn-proof-preview').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const imageUrl = btn.dataset.url;
+                document.getElementById('paymentProofPreview').src = imageUrl;
+                document.getElementById('paymentProofOpenLink').href = imageUrl;
+
+                const modal = new bootstrap.Modal(document.getElementById('paymentProofModal'));
+                modal.show();
+            });
+        });
 
         populateQuantities(initialQuantity);
         updateAmounts();
