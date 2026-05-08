@@ -196,7 +196,7 @@ public static class SeedData
         await EnsureUserAsync(userManager, "gerencia", "Gerencia123!", "Gerencia", company.Id);
         await EnsureUserAsync(userManager, "gestor", "Gestor123!", "Gestor", company.Id);
         await EnsureUserAsync(userManager, "monitoreo", "Monitoreo123!", "Monitoreo", company.Id);
-        await EnsureUserAsync(userManager, "AMIDAS", "AMIDAS123!", "Vendedor", company.Id);
+        await EnsureUserAsync(userManager, "AMIDAS", "AMIDAS", "Vendedor", company.Id);
         await EnsureUserAsync(userManager, "SUPERADMIN", "ADMIN", "SuperAdmin", null);
 
         await EnsureStatusesAsync(db, company.Id);
