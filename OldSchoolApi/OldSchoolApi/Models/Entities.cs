@@ -30,6 +30,15 @@ public class CustomerRecord
     [MaxLength(250)]
     public string FolderPath { get; set; } = string.Empty;
 
+    [MaxLength(120)]
+    public string Destino { get; set; } = string.Empty;
+
+    [MaxLength(80)]
+    public string Clave { get; set; } = string.Empty;
+
+    [MaxLength(80)]
+    public string Guia { get; set; } = string.Empty;
+
     [MaxLength(450)]
     public string CreatedByUserId { get; set; } = string.Empty;
 

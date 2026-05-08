@@ -72,6 +72,15 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
 
         [Display(Name = "Ruta carpeta")]
         public string? FolderPath { get; set; }
+
+        [Display(Name = "Destino")]
+        public string? Destino { get; set; }
+
+        [Display(Name = "Clave")]
+        public string? Clave { get; set; }
+
+        [Display(Name = "Guía")]
+        public string? Guia { get; set; }
     }
 
     public class AddPaymentInputModel
@@ -113,7 +122,10 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             ProductId = record.ProductId,
             Quantity = record.Quantity,
             PaidAmount = GetActivePaidAmount(record.Payments),
-            FolderPath = record.FolderPath
+            FolderPath = record.FolderPath,
+            Destino = record.Destino,
+            Clave = record.Clave,
+            Guia = record.Guia
         };
 
         return Page();
@@ -169,6 +181,12 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             cambios["Cantidad"] = $"{record.Quantity} ? {Input.Quantity}";
         if (record.FolderPath != (Input.FolderPath?.Trim() ?? string.Empty))
             cambios["Ruta"] = $"{record.FolderPath} ? {Input.FolderPath?.Trim()}";
+        if (record.Destino != (Input.Destino?.Trim() ?? string.Empty))
+            cambios["Destino"] = $"{record.Destino} ? {Input.Destino?.Trim()}";
+        if (record.Clave != (Input.Clave?.Trim() ?? string.Empty))
+            cambios["Clave"] = $"{record.Clave} ? {Input.Clave?.Trim()}";
+        if (record.Guia != (Input.Guia?.Trim() ?? string.Empty))
+            cambios["Guia"] = $"{record.Guia} ? {Input.Guia?.Trim()}";
 
         record.StatusCatalogId = Input.StatusCatalogId;
         record.RecordDate = Input.RecordDate;
@@ -182,6 +200,9 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.PaidAmount = paidAmount;
         record.BalanceDue = Math.Max(0m, total - paidAmount);
         record.FolderPath = Input.FolderPath?.Trim() ?? string.Empty;
+        record.Destino = Input.Destino?.Trim() ?? string.Empty;
+        record.Clave = Input.Clave?.Trim() ?? string.Empty;
+        record.Guia = Input.Guia?.Trim() ?? string.Empty;
 
         await db.SaveChangesAsync();
 

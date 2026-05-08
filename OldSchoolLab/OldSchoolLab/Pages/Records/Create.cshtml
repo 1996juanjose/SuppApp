@@ -77,6 +77,27 @@
                 <input asp-for="Input.FolderPath" class="form-control" />
                 <span asp-validation-for="Input.FolderPath" class="text-danger"></span>
             </div>
+            <div class="col-md-4">
+                <label asp-for="Input.Destino" class="form-label"></label>
+                <input asp-for="Input.Destino" class="form-control" list="destinosList" autocomplete="off" placeholder="Buscar o escribir destino..." />
+                <datalist id="destinosList">
+                    @foreach (var d in OldSchoolLab.Services.DestinosCatalog.Destinos)
+                    {
+                        <option value="@d"></option>
+                    }
+                </datalist>
+                <span asp-validation-for="Input.Destino" class="text-danger"></span>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="Input.Clave" class="form-label"></label>
+                <input asp-for="Input.Clave" class="form-control" />
+                <span asp-validation-for="Input.Clave" class="text-danger"></span>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="Input.Guia" class="form-label"></label>
+                <input asp-for="Input.Guia" class="form-control" />
+                <span asp-validation-for="Input.Guia" class="text-danger"></span>
+            </div>
         </div>
 
         <div class="row mt-4 g-3">

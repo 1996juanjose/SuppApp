@@ -123,6 +123,21 @@ public static class SeedData
             """);
 
         await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecords"
+            ADD COLUMN IF NOT EXISTS "Destino" character varying(120) NOT NULL DEFAULT '';
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecords"
+            ADD COLUMN IF NOT EXISTS "Clave" character varying(80) NOT NULL DEFAULT '';
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecords"
+            ADD COLUMN IF NOT EXISTS "Guia" character varying(80) NOT NULL DEFAULT '';
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE IF EXISTS "CustomerRecordPayments"
             ADD COLUMN IF NOT EXISTS "OperationNumber" character varying(50) NOT NULL DEFAULT '';
             """);

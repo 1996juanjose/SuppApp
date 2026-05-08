@@ -62,6 +62,15 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
 
         [Display(Name = "Ruta carpeta")]
         public string? FolderPath { get; set; }
+
+        [Display(Name = "Destino")]
+        public string? Destino { get; set; }
+
+        [Display(Name = "Clave")]
+        public string? Clave { get; set; }
+
+        [Display(Name = "Guía")]
+        public string? Guia { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -147,6 +156,9 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             PaidAmount = 0m,
             BalanceDue = total,
             FolderPath = Input.FolderPath?.Trim() ?? string.Empty,
+            Destino = Input.Destino?.Trim() ?? string.Empty,
+            Clave = Input.Clave?.Trim() ?? string.Empty,
+            Guia = Input.Guia?.Trim() ?? string.Empty,
             CreatedByUserId = userId,
             CreatedByUserName = userName
         };
