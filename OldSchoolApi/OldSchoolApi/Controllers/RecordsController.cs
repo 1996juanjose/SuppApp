@@ -148,6 +148,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
         var record = new CustomerRecord
         {
             StatusCatalogId = status.Id,
+            CompanyId = status.CompanyId,
             RecordDate = fecha,
             Cellphone = celular,
             NameOrReference = request.Nombre?.Trim() ?? string.Empty,

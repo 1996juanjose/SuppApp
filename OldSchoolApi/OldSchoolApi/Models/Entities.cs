@@ -20,6 +20,7 @@ public class CustomerRecord
     [MaxLength(20)]
     public string Dni { get; set; } = string.Empty;
 
+    public int? CompanyId { get; set; }
     public int? ProductId { get; set; }
     public int Quantity { get; set; } = 1;
     public decimal ProductAmount { get; set; }
@@ -43,6 +44,7 @@ public class StatusCatalog
     [MaxLength(50)]
     public string Name { get; set; } = string.Empty;
 
+    public int? CompanyId { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
 }
