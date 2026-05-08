@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolApi.Data;
@@ -9,6 +10,7 @@ namespace OldSchoolApi.Controllers;
 
 [ApiController]
 [Route("api/payments")]
+[Authorize]
 public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory) : ControllerBase
 {
     public class ProcessVoucherRequest
@@ -34,22 +36,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
     }
 
     /// <summary>
-    /// Procesa un voucher de Yape/Plin: extrae el monto via OCR, registra el pago
+    /// Procesa un voucher de Yape/Plin: extrae el monto via OpenAI Vision, registra el pago
     /// y cambia el estado del registro a "Clientes".
-    /// Requiere el header X-Api-Key (misma clave que el endpoint n8n).
+    /// Requiere JWT Bearer token (igual que /api/records).
     /// </summary>
     [HttpPost("process-voucher")]
     public async Task<IActionResult> ProcessVoucher([FromBody] ProcessVoucherRequest request)
     {
-        // Validar API Key
-        var configuredApiKey = config["N8n:ApiKey"];
-        if (string.IsNullOrWhiteSpace(configuredApiKey))
-            return StatusCode(500, new ProcessVoucherResponse { Message = "La API no tiene configurada la ApiKey." });
-
-        if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey)
-            || !string.Equals(apiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
-            return Unauthorized(new ProcessVoucherResponse { Message = "ApiKey inválida." });
-
         if (string.IsNullOrWhiteSpace(request.Celular))
             return BadRequest(new ProcessVoucherResponse { Message = "El campo Celular es obligatorio." });
 
