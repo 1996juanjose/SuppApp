@@ -4,13 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using OldSchoolApi.Data;
 using OldSchoolApi.Models;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OldSchoolApi.Controllers;
 
 [ApiController]
 [Route("api/records")]
 [Authorize]
-public class RecordsController(ApiDbContext db, IConfiguration config) : ControllerBase
+public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory) : ControllerBase
 {
     public class CreateRecordRequest
     {
@@ -176,6 +179,179 @@ public class RecordsController(ApiDbContext db, IConfiguration config) : Control
             fecha = record.RecordDate.ToString("yyyy-MM-dd"),
             nombre = record.NameOrReference
         });
+    }
+
+    public class ProcessPaymentRequest
+    {
+        /// <summary>Celular del remitente (enviado por n8n desde WhatsApp).</summary>
+        public string Celular { get; set; } = string.Empty;
+
+        /// <summary>URL pública de la imagen del comprobante (Yape/Plin).</summary>
+        public string? ImageUrl { get; set; }
+
+        /// <summary>Imagen en base64 (alternativa a ImageUrl).</summary>
+        public string? ImageBase64 { get; set; }
+    }
+
+    private class PaymentImageResult
+    {
+        [JsonPropertyName("amount")] public decimal Amount { get; set; }
+        [JsonPropertyName("date")] public string Date { get; set; } = string.Empty;
+        [JsonPropertyName("paymentType")] public string PaymentType { get; set; } = string.Empty;
+        [JsonPropertyName("valid")] public bool Valid { get; set; }
+    }
+
+    /// <summary>
+    /// Procesa un comprobante de pago (Yape/Plin) desde una imagen.
+    /// Extrae el monto con IA, registra el pago y cambia el estado a Clientes.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpPost("process-payment")]
+    public async Task<IActionResult> ProcessPaymentFromImage([FromBody] ProcessPaymentRequest request)
+    {
+        var configuredApiKey = config["N8n:ApiKey"];
+        if (string.IsNullOrWhiteSpace(configuredApiKey))
+            return StatusCode(500, new { error = "La API no tiene configurada la ApiKey de N8N." });
+
+        if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey)
+            || !string.Equals(apiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
+            return Unauthorized(new { error = "ApiKey inválida." });
+
+        if (string.IsNullOrWhiteSpace(request.Celular))
+            return BadRequest(new { error = "El campo Celular es obligatorio." });
+
+        if (string.IsNullOrWhiteSpace(request.ImageUrl) && string.IsNullOrWhiteSpace(request.ImageBase64))
+            return BadRequest(new { error = "Se requiere ImageUrl o ImageBase64." });
+
+        var celular = NormalizeCellphone(request.Celular);
+
+        // Buscar el registro por celular
+        var record = await db.CustomerRecords
+            .FirstOrDefaultAsync(x => x.Cellphone
+                .Replace(" ", string.Empty)
+                .Replace("-", string.Empty)
+                .Replace("(", string.Empty)
+                .Replace(")", string.Empty)
+                .Replace("+", string.Empty) == celular);
+
+        if (record is null)
+            return NotFound(new { error = $"No se encontró un registro para el celular {celular}." });
+
+        // Extraer datos del comprobante con IA
+        var paymentData = await ExtractPaymentDataFromImageAsync(request.ImageUrl, request.ImageBase64);
+
+        if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0)
+            return BadRequest(new { error = "No se pudo detectar un comprobante de pago válido en la imagen." });
+
+        // Buscar estado "Clientes"
+        var clientesStatus = await db.Statuses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IsActive && x.CompanyId == record.CompanyId
+                && (x.Name == "Clientes" || x.Name == "Cliente"));
+
+        // Determinar fecha del pago
+        var paymentDate = DateTime.TryParse(paymentData.Date, out var parsedDate)
+            ? parsedDate.Date
+            : DateTime.Today;
+
+        // Registrar el pago
+        db.CustomerRecordPayments.Add(new CustomerRecordPayment
+        {
+            CustomerRecordId = record.Id,
+            Amount = paymentData.Amount,
+            PaymentDate = paymentDate,
+            CreatedAt = DateTime.Now,
+            ProofImagePath = request.ImageUrl ?? string.Empty,
+            ProofFileName = string.Empty,
+            CreatedByUserId = "n8n",
+            CreatedByUserName = "n8n"
+        });
+
+        // Actualizar el registro
+        record.PaidAmount += paymentData.Amount;
+        record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
+
+        if (clientesStatus is not null)
+            record.StatusCatalogId = clientesStatus.Id;
+
+        await db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            recordId = record.Id,
+            celular = record.Cellphone,
+            monto = paymentData.Amount,
+            tipoPago = paymentData.PaymentType,
+            fecha = paymentDate.ToString("yyyy-MM-dd"),
+            estadoActualizado = clientesStatus?.Name ?? "sin cambio",
+            nuevoPagado = record.PaidAmount,
+            nuevoDebe = record.BalanceDue
+        });
+    }
+
+    private async Task<PaymentImageResult?> ExtractPaymentDataFromImageAsync(string? imageUrl, string? imageBase64)
+    {
+        var openAiKey = config["OpenAI:ApiKey"];
+        if (string.IsNullOrWhiteSpace(openAiKey))
+            return null;
+
+        var imageContent = imageUrl is not null
+            ? (object)new { type = "image_url", image_url = new { url = imageUrl } }
+            : (object)new { type = "image_url", image_url = new { url = $"data:image/jpeg;base64,{imageBase64}" } };
+
+        var body = new
+        {
+            model = "gpt-4o",
+            max_tokens = 200,
+            messages = new[]
+            {
+                new
+                {
+                    role = "user",
+                    content = new object[]
+                    {
+                        new
+                        {
+                            type = "text",
+                            text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante válido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
+                        },
+                        imageContent
+                    }
+                }
+            }
+        };
+
+        using var client = httpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {openAiKey}");
+
+        var json = JsonSerializer.Serialize(body);
+        var response = await client.PostAsync(
+            "https://api.openai.com/v1/chat/completions",
+            new StringContent(json, Encoding.UTF8, "application/json"));
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        var responseJson = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(responseJson);
+
+        var content = doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString() ?? string.Empty;
+
+        // Limpiar markdown si GPT devuelve ```json ... ```
+        content = content.Trim();
+        if (content.StartsWith("```"))
+        {
+            content = content.Split('\n').Skip(1).ToArray() is var lines
+                ? string.Join('\n', lines).TrimEnd('`').Trim()
+                : content;
+        }
+
+        return JsonSerializer.Deserialize<PaymentImageResult>(content);
     }
 
     private static string NormalizeCellphone(string celular)

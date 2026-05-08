@@ -121,8 +121,8 @@
         {
             @foreach (var item in Model.Records)
             {
-                var rowClass = item.StatusCatalog.Name == "Interesado" ? "table-warning" : "";
-                <tr class="@rowClass">
+                var rowStyle = item.StatusCatalog.Name == "Interesado" ? "background-color:#fff176 !important;" : "";
+                <tr style="@rowStyle">
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
                     <td>@item.RecordDate.ToString("yyyy-MM-dd")</td>
                     <td>@item.Cellphone</td>

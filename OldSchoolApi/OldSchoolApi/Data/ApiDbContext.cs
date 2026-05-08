@@ -6,6 +6,7 @@ namespace OldSchoolApi.Data;
 public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(options)
 {
     public DbSet<CustomerRecord> CustomerRecords => Set<CustomerRecord>();
+    public DbSet<CustomerRecordPayment> CustomerRecordPayments => Set<CustomerRecordPayment>();
     public DbSet<StatusCatalog> Statuses => Set<StatusCatalog>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductPrice> ProductPrices => Set<ProductPrice>();
@@ -29,6 +30,14 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
             .Property(x => x.BalanceDue).HasPrecision(10, 2);
         builder.Entity<CustomerRecord>()
             .Property(x => x.RecordDate).HasColumnType("date");
+        builder.Entity<CustomerRecordPayment>()
+            .Property(x => x.Amount).HasPrecision(10, 2);
+        builder.Entity<CustomerRecordPayment>()
+            .Property(x => x.PaymentDate).HasColumnType("date");
+        builder.Entity<CustomerRecordPayment>()
+            .Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<CustomerRecordPayment>()
+            .Property(x => x.ReversedAt).HasColumnType("timestamp without time zone");
         builder.Entity<ProductPrice>()
             .Property(x => x.Price).HasPrecision(10, 2);
     }
