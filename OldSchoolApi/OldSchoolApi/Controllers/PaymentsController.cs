@@ -4,7 +4,6 @@ using OldSchoolApi.Data;
 using OldSchoolApi.Models;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace OldSchoolApi.Controllers;
 
@@ -135,66 +134,65 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
     {
         try
         {
-            var ocrApiKey = config["OcrSpace:ApiKey"] ?? "helloworld"; // helloworld = key demo gratuita
+            var openAiKey = config["OpenAI:ApiKey"]
+                ?? throw new InvalidOperationException("Falta configurar OpenAI:ApiKey en appsettings.");
+
             var client = httpClientFactory.CreateClient();
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {openAiKey}");
 
-            using var content = new MultipartFormDataContent();
-            content.Add(new StringContent(ocrApiKey), "apikey");
-            content.Add(new StringContent("spa"), "language");
-            content.Add(new StringContent("true"), "isOverlayRequired");
-            content.Add(new StringContent($"data:image/{extension};base64,{imageBase64}"), "base64Image");
+            var body = new
+            {
+                model = "gpt-4o-mini",
+                messages = new[]
+                {
+                    new
+                    {
+                        role = "user",
+                        content = new object[]
+                        {
+                            new
+                            {
+                                type = "text",
+                                text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
+                                       "Responde SOLO con un JSON con este formato exacto, sin markdown: " +
+                                       "{\"monto\": 20.00, \"tipo\": \"Yape\"} " +
+                                       "Donde 'monto' es el monto en soles como número decimal y 'tipo' es 'Yape', 'Plin' o 'Desconocido'. " +
+                                       "Si no puedes detectar el monto, responde: {\"monto\": 0, \"tipo\": \"Desconocido\"}"
+                            },
+                            new
+                            {
+                                type = "image_url",
+                                image_url = new { url = $"data:image/{extension};base64,{imageBase64}" }
+                            }
+                        }
+                    }
+                },
+                max_tokens = 100
+            };
 
-            var response = await client.PostAsync("https://api.ocr.space/parse/image", content);
-            var json = await response.Content.ReadAsStringAsync();
+            var json = JsonSerializer.Serialize(body);
+            using var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var doc = JsonDocument.Parse(json);
-            var parsedText = doc.RootElement
-                .GetProperty("ParsedResults")[0]
-                .GetProperty("ParsedText")
+            var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
+            var responseJson = await response.Content.ReadAsStringAsync();
+
+            var doc = JsonDocument.Parse(responseJson);
+            var messageContent = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
                 .GetString() ?? string.Empty;
 
-            var tipoVoucher = DetectVoucherType(parsedText);
-            var monto = ExtractAmount(parsedText);
+            var result = JsonDocument.Parse(messageContent.Trim());
+            var monto = result.RootElement.GetProperty("monto").GetDecimal();
+            var tipo = result.RootElement.GetProperty("tipo").GetString() ?? "Desconocido";
 
-            return (monto, tipoVoucher);
+            return (monto, tipo);
         }
         catch
         {
             return (0m, "Desconocido");
         }
-    }
-
-    private static string DetectVoucherType(string text)
-    {
-        var upper = text.ToUpperInvariant();
-        if (upper.Contains("YAPE") || upper.Contains("YAPEASTE")) return "Yape";
-        if (upper.Contains("PLIN")) return "Plin";
-        return "Desconocido";
-    }
-
-    private static decimal ExtractAmount(string text)
-    {
-        // Busca patrones como: S/20, S/ 20, S/20.00, s/89.90
-        var patterns = new[]
-        {
-            @"S/\s*(\d+(?:[.,]\d{1,2})?)",   // S/20 o S/20.00
-            @"S/\.\s*(\d+(?:[.,]\d{1,2})?)",  // S/.20
-            @"(\d+(?:[.,]\d{1,2})?)\s*soles",  // 20 soles
-        };
-
-        foreach (var pattern in patterns)
-        {
-            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
-            if (match.Success)
-            {
-                var raw = match.Groups[1].Value.Replace(",", ".");
-                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
-                    System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
-                    return amount;
-            }
-        }
-
-        return 0m;
     }
 
     private static (string path, string fileName) SaveProofImage(string base64, string extension, string celular)
