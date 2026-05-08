@@ -67,3 +67,36 @@ public class ProductPrice
     public int Quantity { get; set; }
     public decimal Price { get; set; }
 }
+
+public class CustomerRecordPayment
+{
+    public int Id { get; set; }
+    public int CustomerRecordId { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime PaymentDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    [MaxLength(260)]
+    public string ProofImagePath { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string ProofFileName { get; set; } = string.Empty;
+
+    [MaxLength(50)]
+    public string OperationNumber { get; set; } = string.Empty;
+
+    [MaxLength(450)]
+    public string CreatedByUserId { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string CreatedByUserName { get; set; } = string.Empty;
+
+    public bool IsReversed { get; set; }
+    public DateTime? ReversedAt { get; set; }
+
+    [MaxLength(450)]
+    public string ReversedByUserId { get; set; } = string.Empty;
+
+    [MaxLength(120)]
+    public string ReversedByUserName { get; set; } = string.Empty;
+}

@@ -66,7 +66,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         if (record is null)
             return NotFound(new ProcessVoucherResponse { Message = $"No se encontró un registro con el celular {celular}." });
 
-        // Extraer monto e info del voucher via OCR
+        // Extraer monto e info del voucher via OpenAI
         var ocrResult = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
         if (ocrResult.Monto <= 0)
             return UnprocessableEntity(new ProcessVoucherResponse
@@ -74,6 +74,23 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 Message = "No se pudo detectar el monto en la imagen. Verifica que sea un voucher Yape o Plin válido.",
                 TipoVoucher = ocrResult.TipoVoucher
             });
+
+        // Validar duplicado por número de operación
+        if (!string.IsNullOrWhiteSpace(ocrResult.NumeroOperacion))
+        {
+            var duplicado = await db.CustomerRecordPayments
+                .AsNoTracking()
+                .AnyAsync(x => x.OperationNumber == ocrResult.NumeroOperacion && !x.IsReversed);
+
+            if (duplicado)
+                return Ok(new ProcessVoucherResponse
+                {
+                    Success = false,
+                    Message = $"El voucher con número de operación {ocrResult.NumeroOperacion} ya fue registrado anteriormente.",
+                    MontoDetectado = ocrResult.Monto,
+                    TipoVoucher = ocrResult.TipoVoucher
+                });
+        }
 
         // Buscar el status "Clientes"
         var clientesStatus = await db.Statuses
@@ -97,6 +114,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             CreatedAt = DateTime.Now,
             ProofImagePath = proofPath,
             ProofFileName = proofFileName,
+            OperationNumber = ocrResult.NumeroOperacion,
             CreatedByUserId = "n8n",
             CreatedByUserName = "n8n"
         };
@@ -123,7 +141,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         });
     }
 
-    private async Task<(decimal Monto, string TipoVoucher)> ExtractVoucherDataAsync(string imageBase64, string extension)
+    private async Task<(decimal Monto, string TipoVoucher, string NumeroOperacion)> ExtractVoucherDataAsync(string imageBase64, string extension)
     {
         try
         {
@@ -148,9 +166,10 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                                 type = "text",
                                 text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
                                        "Responde SOLO con un JSON con este formato exacto, sin markdown: " +
-                                       "{\"monto\": 20.00, \"tipo\": \"Yape\"} " +
-                                       "Donde 'monto' es el monto en soles como número decimal y 'tipo' es 'Yape', 'Plin' o 'Desconocido'. " +
-                                       "Si no puedes detectar el monto, responde: {\"monto\": 0, \"tipo\": \"Desconocido\"}"
+                                       "{\"monto\": 20.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\"} " +
+                                       "Donde 'monto' es el monto en soles, 'tipo' es 'Yape', 'Plin' o 'Desconocido', " +
+                                       "'nro_operacion' es el número de operación o transacción visible en el voucher (solo dígitos, sin espacios). " +
+                                       "Si no encuentras algún campo, usa: monto=0, tipo='Desconocido', nro_operacion=''."
                             },
                             new
                             {
@@ -160,7 +179,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                         }
                     }
                 },
-                max_tokens = 100
+                max_tokens = 150
             };
 
             var json = JsonSerializer.Serialize(body);
@@ -179,12 +198,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             var result = JsonDocument.Parse(messageContent.Trim());
             var monto = result.RootElement.GetProperty("monto").GetDecimal();
             var tipo = result.RootElement.GetProperty("tipo").GetString() ?? "Desconocido";
+            var nroOp = result.RootElement.GetProperty("nro_operacion").GetString() ?? string.Empty;
 
-            return (monto, tipo);
+            return (monto, tipo, nroOp);
         }
         catch
         {
-            return (0m, "Desconocido");
+            return (0m, "Desconocido", string.Empty);
         }
     }
 
