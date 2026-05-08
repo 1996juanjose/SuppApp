@@ -81,6 +81,10 @@
     <table class="table table-striped table-bordered align-middle">
         <thead class="table-light">
             <tr>
+                @if (Model.CanEdit)
+                {
+                    <th></th>
+                }
                 <th>Estado</th>
                 <th>Fecha</th>
                 <th>Celular</th>
@@ -96,10 +100,6 @@
                 <th>Últ. pago</th>
                 <th>Ruta carpeta</th>
                 <th>Usuario</th>
-                @if (Model.CanEdit)
-                {
-                    <th></th>
-                }
                 @if (Model.CanViewAudit)
                 {
                     <th></th>
@@ -123,6 +123,12 @@
             {
                 var rowStyle = item.StatusCatalog.Name == "Interesado" ? "background-color:#fff176 !important;" : "";
                 <tr style="@rowStyle">
+                    @if (Model.CanEdit)
+                    {
+                        <td>
+                            <a asp-page="/Records/Edit" asp-route-id="@item.Id" class="btn btn-sm btn-primary">Editar</a>
+                        </td>
+                    }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
                     <td>@item.RecordDate.ToString("yyyy-MM-dd")</td>
                     <td>@item.Cellphone</td>
@@ -146,12 +152,6 @@
                     <td>@(item.Payments.Any(x => !x.IsReversed) ? item.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd") : "-")</td>
                     <td class="text-truncate" style="max-width:100px" title="@item.FolderPath">@item.FolderPath</td>
                     <td>@item.CreatedByUserName</td>
-                    @if (Model.CanEdit)
-                    {
-                        <td class="text-nowrap">
-                            <a asp-page="/Records/Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Editar</a>
-                        </td>
-                    }
                     @if (Model.CanViewAudit)
                     {
                         <td class="text-center">
