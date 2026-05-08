@@ -258,7 +258,7 @@ public static class SeedData
         {
             new { Name = "Clientes", BadgeClass = "success", SortOrder = 1 },
             new { Name = "Rechazo", BadgeClass = "danger", SortOrder = 2 },
-            new { Name = "Interesado", BadgeClass = "info", SortOrder = 3 },
+            new { Name = "Interesado", BadgeClass = "warning", SortOrder = 3 },
             new { Name = "Por Pagar", BadgeClass = "warning", SortOrder = 4 },
             new { Name = "Prospecto", BadgeClass = "primary", SortOrder = 5 }
         };

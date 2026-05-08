@@ -29,6 +29,8 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
     options.AccessDeniedPath = "/Account/AccessDenied";
+    options.ExpireTimeSpan = TimeSpan.FromHours(4);
+    options.SlidingExpiration = true;
 });
 
 builder.Services.AddScoped<IAuditService, AuditService>();
