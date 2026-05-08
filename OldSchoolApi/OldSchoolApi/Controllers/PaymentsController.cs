@@ -1,0 +1,219 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using OldSchoolApi.Data;
+using OldSchoolApi.Models;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace OldSchoolApi.Controllers;
+
+[ApiController]
+[Route("api/payments")]
+public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory) : ControllerBase
+{
+    public class ProcessVoucherRequest
+    {
+        /// <summary>Número de celular del remitente (quien envió el voucher por WhatsApp).</summary>
+        public string Celular { get; set; } = string.Empty;
+
+        /// <summary>Imagen del voucher en Base64 (sin prefijo data:image/...).</summary>
+        public string ImageBase64 { get; set; } = string.Empty;
+
+        /// <summary>Extensión de la imagen: jpg, png, etc.</summary>
+        public string ImageExtension { get; set; } = "jpg";
+    }
+
+    public class ProcessVoucherResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public decimal? MontoDetectado { get; set; }
+        public string? TipoVoucher { get; set; }
+        public int? RecordId { get; set; }
+        public int? PaymentId { get; set; }
+    }
+
+    /// <summary>
+    /// Procesa un voucher de Yape/Plin: extrae el monto via OCR, registra el pago
+    /// y cambia el estado del registro a "Clientes".
+    /// Requiere el header X-Api-Key (misma clave que el endpoint n8n).
+    /// </summary>
+    [HttpPost("process-voucher")]
+    public async Task<IActionResult> ProcessVoucher([FromBody] ProcessVoucherRequest request)
+    {
+        // Validar API Key
+        var configuredApiKey = config["N8n:ApiKey"];
+        if (string.IsNullOrWhiteSpace(configuredApiKey))
+            return StatusCode(500, new ProcessVoucherResponse { Message = "La API no tiene configurada la ApiKey." });
+
+        if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey)
+            || !string.Equals(apiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
+            return Unauthorized(new ProcessVoucherResponse { Message = "ApiKey inválida." });
+
+        if (string.IsNullOrWhiteSpace(request.Celular))
+            return BadRequest(new ProcessVoucherResponse { Message = "El campo Celular es obligatorio." });
+
+        if (string.IsNullOrWhiteSpace(request.ImageBase64))
+            return BadRequest(new ProcessVoucherResponse { Message = "El campo ImageBase64 es obligatorio." });
+
+        // Normalizar celular
+        var celular = new string(request.Celular.Where(char.IsDigit).ToArray());
+        if (string.IsNullOrWhiteSpace(celular))
+            return BadRequest(new ProcessVoucherResponse { Message = "Celular no válido." });
+
+        // Buscar el registro del cliente por celular
+        var record = await db.CustomerRecords
+            .FirstOrDefaultAsync(x => x.Cellphone
+                .Replace(" ", string.Empty)
+                .Replace("-", string.Empty)
+                .Replace("(", string.Empty)
+                .Replace(")", string.Empty)
+                .Replace("+", string.Empty) == celular);
+
+        if (record is null)
+            return NotFound(new ProcessVoucherResponse { Message = $"No se encontró un registro con el celular {celular}." });
+
+        // Extraer monto e info del voucher via OCR
+        var ocrResult = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
+        if (ocrResult.Monto <= 0)
+            return UnprocessableEntity(new ProcessVoucherResponse
+            {
+                Message = "No se pudo detectar el monto en la imagen. Verifica que sea un voucher Yape o Plin válido.",
+                TipoVoucher = ocrResult.TipoVoucher
+            });
+
+        // Buscar el status "Clientes"
+        var clientesStatus = await db.Statuses
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IsActive && (x.Name == "Clientes" || x.Name == "Cliente"))
+            ?? await db.Statuses
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.SortOrder)
+                .FirstOrDefaultAsync();
+
+        // Guardar imagen como comprobante
+        var (proofPath, proofFileName) = SaveProofImage(request.ImageBase64, request.ImageExtension, celular);
+
+        // Registrar el pago
+        var payment = new CustomerRecordPayment
+        {
+            CustomerRecordId = record.Id,
+            Amount = ocrResult.Monto,
+            PaymentDate = DateTime.Today,
+            CreatedAt = DateTime.Now,
+            ProofImagePath = proofPath,
+            ProofFileName = proofFileName,
+            CreatedByUserId = "n8n",
+            CreatedByUserName = "n8n"
+        };
+
+        db.CustomerRecordPayments.Add(payment);
+
+        // Actualizar el registro: sumar pago, cambiar estado a Clientes
+        record.PaidAmount += ocrResult.Monto;
+        record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
+
+        if (clientesStatus is not null)
+            record.StatusCatalogId = clientesStatus.Id;
+
+        await db.SaveChangesAsync();
+
+        return Ok(new ProcessVoucherResponse
+        {
+            Success = true,
+            Message = $"Pago de S/{ocrResult.Monto:0.00} registrado correctamente para el celular {celular}.",
+            MontoDetectado = ocrResult.Monto,
+            TipoVoucher = ocrResult.TipoVoucher,
+            RecordId = record.Id,
+            PaymentId = payment.Id
+        });
+    }
+
+    private async Task<(decimal Monto, string TipoVoucher)> ExtractVoucherDataAsync(string imageBase64, string extension)
+    {
+        try
+        {
+            var ocrApiKey = config["OcrSpace:ApiKey"] ?? "helloworld"; // helloworld = key demo gratuita
+            var client = httpClientFactory.CreateClient();
+
+            using var content = new MultipartFormDataContent();
+            content.Add(new StringContent(ocrApiKey), "apikey");
+            content.Add(new StringContent("spa"), "language");
+            content.Add(new StringContent("true"), "isOverlayRequired");
+            content.Add(new StringContent($"data:image/{extension};base64,{imageBase64}"), "base64Image");
+
+            var response = await client.PostAsync("https://api.ocr.space/parse/image", content);
+            var json = await response.Content.ReadAsStringAsync();
+
+            var doc = JsonDocument.Parse(json);
+            var parsedText = doc.RootElement
+                .GetProperty("ParsedResults")[0]
+                .GetProperty("ParsedText")
+                .GetString() ?? string.Empty;
+
+            var tipoVoucher = DetectVoucherType(parsedText);
+            var monto = ExtractAmount(parsedText);
+
+            return (monto, tipoVoucher);
+        }
+        catch
+        {
+            return (0m, "Desconocido");
+        }
+    }
+
+    private static string DetectVoucherType(string text)
+    {
+        var upper = text.ToUpperInvariant();
+        if (upper.Contains("YAPE") || upper.Contains("YAPEASTE")) return "Yape";
+        if (upper.Contains("PLIN")) return "Plin";
+        return "Desconocido";
+    }
+
+    private static decimal ExtractAmount(string text)
+    {
+        // Busca patrones como: S/20, S/ 20, S/20.00, s/89.90
+        var patterns = new[]
+        {
+            @"S/\s*(\d+(?:[.,]\d{1,2})?)",   // S/20 o S/20.00
+            @"S/\.\s*(\d+(?:[.,]\d{1,2})?)",  // S/.20
+            @"(\d+(?:[.,]\d{1,2})?)\s*soles",  // 20 soles
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var raw = match.Groups[1].Value.Replace(",", ".");
+                if (decimal.TryParse(raw, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var amount) && amount > 0)
+                    return amount;
+            }
+        }
+
+        return 0m;
+    }
+
+    private static (string path, string fileName) SaveProofImage(string base64, string extension, string celular)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(base64);
+            var folder = Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
+            Directory.CreateDirectory(folder);
+
+            var fileName = $"voucher-{celular}-{DateTime.Now:yyyyMMddHHmmss}.{extension}";
+            var fullPath = Path.Combine(folder, fileName);
+            System.IO.File.WriteAllBytes(fullPath, bytes);
+
+            return ($"/payment-proofs/{fileName}", fileName);
+        }
+        catch
+        {
+            return (string.Empty, string.Empty);
+        }
+    }
+}
