@@ -11,7 +11,7 @@ namespace OldSchoolApi.Controllers;
 [ApiController]
 [Route("api/payments")]
 [Authorize]
-public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory) : ControllerBase
+public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, ILogger<PaymentsController> logger) : ControllerBase
 {
     public class ProcessVoucherRequest
     {
@@ -197,14 +197,17 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 ?? Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
             Directory.CreateDirectory(folder);
 
-            var fileName = $"voucher-{celular}-{DateTime.Now:yyyyMMddHHmmss}.{extension}";
+            var ext = extension.TrimStart('.'); // quita el punto si viene con él
+            var fileName = $"voucher-{celular}-{DateTime.Now:yyyyMMddHHmmss}.{ext}";
             var fullPath = Path.Combine(folder, fileName);
             System.IO.File.WriteAllBytes(fullPath, bytes);
 
+            logger.LogInformation("Imagen guardada en: {Path}", fullPath);
             return ($"/payment-proofs/{fileName}", fileName);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Error al guardar imagen del voucher para celular {Celular}", celular);
             return (string.Empty, string.Empty);
         }
     }
