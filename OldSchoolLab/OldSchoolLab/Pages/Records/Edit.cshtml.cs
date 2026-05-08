@@ -13,7 +13,7 @@ using System.Security.Claims;
 
 namespace OldSchoolLab.Pages.Records;
 
-[Authorize(Roles = "Gerencia,Gestor")]
+[Authorize(Roles = "Gerencia,Gestor,Vendedor")]
 public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentProofStorage paymentProofStorage) : PageModel
 {
     [BindProperty]
@@ -63,7 +63,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         public int? ProductId { get; set; }
 
         [Range(1, 999)]
-        [Display(Name = "Cantidad")]
+        [Display(Name = "Cantidad")]    
         public int Quantity { get; set; } = 1;
 
         [Range(0, 100000)]

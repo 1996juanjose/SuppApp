@@ -31,7 +31,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public decimal TotalBalanceDue { get; private set; }
     public int TotalFilteredRecords { get; private set; }
 
-    public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor");
+    public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor") || User.IsInRole("Vendedor");
     public bool CanDelete => User.IsInRole("Gerencia");
     public bool CanViewAudit => User.IsInRole("Gerencia");
 

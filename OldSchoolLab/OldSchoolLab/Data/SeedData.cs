@@ -124,6 +124,11 @@ public static class SeedData
 
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE IF EXISTS "CustomerRecordPayments"
+            ADD COLUMN IF NOT EXISTS "OperationNumber" character varying(50) NOT NULL DEFAULT '';
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecordPayments"
             ALTER COLUMN "ReversedAt" TYPE timestamp without time zone
             USING "ReversedAt"::timestamp without time zone;
             """);
@@ -178,7 +183,7 @@ public static class SeedData
               );
             """);
 
-        var roles = new[] { "SuperAdmin", "AdminEmpresa", "Gerencia", "Gestor", "Monitoreo" };
+        var roles = new[] { "SuperAdmin", "AdminEmpresa", "Gerencia", "Gestor", "Monitoreo", "Vendedor" };
         foreach (var role in roles)
         {
             if (!await roleManager.RoleExistsAsync(role))
@@ -191,6 +196,7 @@ public static class SeedData
         await EnsureUserAsync(userManager, "gerencia", "Gerencia123!", "Gerencia", company.Id);
         await EnsureUserAsync(userManager, "gestor", "Gestor123!", "Gestor", company.Id);
         await EnsureUserAsync(userManager, "monitoreo", "Monitoreo123!", "Monitoreo", company.Id);
+        await EnsureUserAsync(userManager, "AMIDAS", "AMIDAS123!", "Vendedor", company.Id);
         await EnsureUserAsync(userManager, "SUPERADMIN", "ADMIN", "SuperAdmin", null);
 
         await EnsureStatusesAsync(db, company.Id);
