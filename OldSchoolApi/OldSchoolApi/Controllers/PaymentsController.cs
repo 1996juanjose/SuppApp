@@ -188,12 +188,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         }
     }
 
-    private static (string path, string fileName) SaveProofImage(string base64, string extension, string celular)
+    private (string path, string fileName) SaveProofImage(string base64, string extension, string celular)
     {
         try
         {
             var bytes = Convert.FromBase64String(base64);
-            var folder = Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
+            var folder = config["Storage:PaymentProofsPath"]
+                ?? Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
             Directory.CreateDirectory(folder);
 
             var fileName = $"voucher-{celular}-{DateTime.Now:yyyyMMddHHmmss}.{extension}";
