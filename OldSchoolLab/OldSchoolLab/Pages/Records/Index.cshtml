@@ -2,7 +2,7 @@
 @model OldSchoolLab.Pages.Records.IndexModel
 @{
     ViewData["Title"] = "Registros";
-    int totalCols = 15 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0);
+    int totalCols = 15 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -104,6 +104,10 @@
                 {
                     <th></th>
                 }
+                @if (Model.CanDelete)
+                {
+                    <th></th>
+                }
             </tr>
         </thead>
         <tbody>
@@ -117,18 +121,19 @@
         {
             @foreach (var item in Model.Records)
             {
-                <tr>
+                var rowClass = item.StatusCatalog.Name == "Interesado" ? "table-warning" : "";
+                <tr class="@rowClass">
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
                     <td>@item.RecordDate.ToString("yyyy-MM-dd")</td>
                     <td>@item.Cellphone</td>
-                    <td>@item.NameOrReference</td>
-                    <td>@item.CallActivity</td>
+                    <td class="text-truncate" style="max-width:120px" title="@item.NameOrReference">@item.NameOrReference</td>
+                    <td class="text-truncate" style="max-width:150px" title="@item.CallActivity">@item.CallActivity</td>
                     <td>@item.Dni</td>
                     <td>@item.Product?.Name</td>
                     <td>@item.Quantity</td>
-                    <td>@($"S/ {item.ProductAmount:0.00}")</td>
-                    <td>@($"S/ {item.ActivePaidAmount:0.00}")</td>
-                    <td>@($"S/ {item.CalculatedBalanceDue:0.00}")</td>
+                    <td class="text-nowrap">@($"S/ {item.ProductAmount:0.00}")</td>
+                    <td class="text-nowrap">@($"S/ {item.ActivePaidAmount:0.00}")</td>
+                    <td class="text-nowrap">@($"S/ {item.CalculatedBalanceDue:0.00}")</td>
                     <td>
                         <button type="button"
                                 class="btn btn-sm btn-outline-info btn-payments"
@@ -139,7 +144,7 @@
                         </button>
                     </td>
                     <td>@(item.Payments.Any(x => !x.IsReversed) ? item.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd") : "-")</td>
-                    <td>@item.FolderPath</td>
+                    <td class="text-truncate" style="max-width:100px" title="@item.FolderPath">@item.FolderPath</td>
                     <td>@item.CreatedByUserName</td>
                     @if (Model.CanEdit)
                     {
@@ -156,6 +161,17 @@
                                     data-celular="@item.Cellphone"
                                     title="Ver historial de cambios">
                                 Auditor&iacute;a
+                            </button>
+                        </td>
+                    }
+                    @if (Model.CanDelete)
+                    {
+                        <td class="text-center">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger btn-delete"
+                                    data-id="@item.Id"
+                                    data-celular="@item.Cellphone">
+                                Eliminar
                             </button>
                         </td>
                     }
@@ -185,6 +201,27 @@
     </div>
 </div>
 
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger" id="deleteModalLabel">Eliminar registro</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                ¿Estás seguro de eliminar el registro de <strong id="deleteCelular"></strong>? Esta acción no se puede deshacer y se eliminarán todos los pagos asociados.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="deleteForm" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="paymentImageModal" tabindex="-1" aria-labelledby="paymentImageModalLabel" aria-hidden="true" data-bs-keyboard="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
@@ -204,7 +241,16 @@
 </div>
 
 <script>
-    document.querySelectorAll('.btn-payments').forEach(btn => {
+document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('deleteCelular').textContent = btn.dataset.celular;
+        document.getElementById('deleteForm').action =
+            `/Records?handler=Delete&id=${btn.dataset.id}`;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    });
+});
+
+document.querySelectorAll('.btn-payments').forEach(btn => {
         btn.addEventListener('click', async () => {
             const id = btn.dataset.id;
             const celular = btn.dataset.celular;
