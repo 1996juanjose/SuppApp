@@ -32,6 +32,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public int TotalFilteredRecords { get; private set; }
 
     public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor");
+    public bool CanDelete => User.IsInRole("Gerencia");
     public bool CanViewAudit => User.IsInRole("Gerencia");
 
     public async Task OnGetAsync()
@@ -48,6 +49,25 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         TotalBalanceDue = Records
             .Where(x => x.StatusCatalog.Name == "Cliente" || x.StatusCatalog.Name == "Clientes")
             .Sum(x => x.CalculatedBalanceDue);
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(int id)
+    {
+        if (!User.IsInRole("Gerencia"))
+            return Forbid();
+
+        var companyId = User.GetCompanyId();
+        var record = await db.CustomerRecords
+            .FirstOrDefaultAsync(x => x.Id == id && (!companyId.HasValue || x.CompanyId == companyId.Value));
+
+        if (record is null)
+            return NotFound();
+
+        db.CustomerRecords.Remove(record);
+        await db.SaveChangesAsync();
+
+        TempData["StatusMessage"] = $"Registro de {record.Cellphone} eliminado correctamente.";
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnGetExportFilteredAsync()
@@ -133,6 +153,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             amount = x.Amount,
             x.CreatedByUserName,
             x.ProofImagePath,
+            x.OperationNumber,
             x.IsReversed,
             ReversedAt = x.ReversedAt?.ToString("yyyy-MM-dd HH:mm:ss"),
             x.ReversedByUserName

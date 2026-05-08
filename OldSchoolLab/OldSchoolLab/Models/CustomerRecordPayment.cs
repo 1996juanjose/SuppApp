@@ -24,6 +24,9 @@ public class CustomerRecordPayment
     [MaxLength(120)]
     public string ProofFileName { get; set; } = string.Empty;
 
+    [MaxLength(50)]
+    public string OperationNumber { get; set; } = string.Empty;
+
     [MaxLength(450)]
     public string CreatedByUserId { get; set; } = string.Empty;
 
