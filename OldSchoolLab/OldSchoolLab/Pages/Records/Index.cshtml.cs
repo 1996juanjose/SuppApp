@@ -6,6 +6,7 @@ using OldSchoolLab.Data;
 using OldSchoolLab.Models;
 using OldSchoolLab.Services;
 using System.Text;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace OldSchoolLab.Pages.Records;
 
@@ -37,17 +38,32 @@ public class IndexModel(ApplicationDbContext db) : PageModel
 
     public async Task OnGetAsync()
     {
-        await LoadStatusesAsync();
 
-        Records = await BuildFilteredRecordsQuery()
+
+        await LoadStatusesAsync();
+        var today = DateTime.Today;
+        var query = BuildFilteredRecordsQuery();
+
+        if (!FromDate.HasValue && !ToDate.HasValue)
+        {
+            query = query.Where(x => x.RecordDate.Date == today);
+        }
+
+        // Aplicar ordenamiento
+        Records = await query
             .OrderByDescending(x => x.RecordDate)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
+        //Records = await BuildFilteredRecordsQuery()
+        //    .OrderByDescending(x => x.RecordDate)
+        //    .ThenByDescending(x => x.Id)
+        //    .ToListAsync();
+
         TotalFilteredRecords = Records.Count;
         TotalPaidAmount = Records.Sum(x => x.ActivePaidAmount);
         TotalBalanceDue = Records
-            .Where(x => x.StatusCatalog.Name == "Cliente" || x.StatusCatalog.Name == "Clientes")
+            .Where(x => x.StatusCatalog.Name == "Clientes" || x.StatusCatalog.Name == "Por Pagar")
             .Sum(x => x.CalculatedBalanceDue);
     }
 

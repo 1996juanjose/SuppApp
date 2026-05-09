@@ -41,6 +41,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<HtmlEncoder>(
     HtmlEncoder.Create(UnicodeRanges.All));
 
+
+
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/");
@@ -53,6 +55,12 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+// Forzar todas las respuestas a usar UTF-8
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["Content-Type"] = "text/html; charset=utf-8";
+    await next();
+});
 var paymentProofsPath = Path.Combine(app.Environment.ContentRootPath, "storage", "payment-proofs");
 Directory.CreateDirectory(paymentProofsPath);
 var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "storage", "company-logos");
