@@ -14,9 +14,15 @@ public class Product
     [MaxLength(80)]
     public string Name { get; set; } = string.Empty;
 
+    public decimal PurchaseUnitCost { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public ICollection<ProductPrice> Prices { get; set; } = new List<ProductPrice>();
+
+    public ICollection<ProductCommissionTier> CommissionTiers { get; set; } = new List<ProductCommissionTier>();
+
+    public ICollection<ProductStockMovement> StockMovements { get; set; } = new List<ProductStockMovement>();
 
     public ICollection<CustomerRecord> CustomerRecords { get; set; } = new List<CustomerRecord>();
 }

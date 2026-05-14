@@ -1,10 +1,10 @@
 # PRD - OldSchoolLab / OldSchoolApi
 
 ## 1. Resumen
-`OldSchoolLab` es una aplicación web en `ASP.NET Core Razor Pages` para gestionar registros comerciales, estados, productos y auditoría. `OldSchoolApi` es una API separada para autenticación e integración con automatizaciones externas como `n8n`.
+`OldSchoolLab` es una aplicación web en `ASP.NET Core Razor Pages` para gestionar registros comerciales, pagos, estados, productos, inventario y auditoría. `OldSchoolApi` es una API separada para autenticación e integración con automatizaciones externas como `n8n`.
 
 ## 2. Objetivo
-Centralizar el registro y seguimiento operativo de contactos comerciales en una plataforma web simple, con una API complementaria para integraciones.
+Centralizar el registro y seguimiento operativo de contactos comerciales en una plataforma web simple, con control de pagos, stock e inventario, y una API complementaria para integraciones externas.
 
 ## 3. Problema que resuelve
 El proyecto busca:
@@ -12,6 +12,9 @@ El proyecto busca:
 - registrar contactos y su estado comercial
 - evitar duplicados por `Celular`
 - manejar productos con precios por cantidad
+- registrar movimientos de inventario y calcular stock por producto
+- crear y revertir automáticamente salidas de stock cuando un registro queda o deja de quedar totalmente pagado
+- calcular ganancias por rango de fechas con gastos opcionales
 - auditar acciones relevantes
 - permitir inserciones automáticas desde `n8n`
 
@@ -24,6 +27,8 @@ Módulos observados:
 - gestión de registros
 - edición de registros
 - catálogo de productos
+- inventario y movimientos de stock
+- ganancias y gastos por rango de fechas
 - auditoría
 - autorización por roles
 
@@ -38,9 +43,12 @@ Capacidades observadas:
 ## 5. Usuarios y roles
 Roles identificados:
 
+- `SuperAdmin`
+- `AdminEmpresa`
 - `Gerencia`
 - `Gestor`
 - `Monitoreo`
+- `Vendedor`
 
 Usuario de prueba configurado:
 
@@ -111,20 +119,38 @@ Ejemplo:
 - un producto puede tener varios precios
 - si no existe precio para una cantidad, no debe guardarse
 
-### RF-06. Auditoría
+### RF-06. Inventario y movimientos de stock
+El sistema debe permitir registrar movimientos manuales de stock y mostrar el cálculo de inventario.
+
+**Criterios de aceptación**
+- se puede registrar ingreso o egreso manual por producto
+- el stock visible se calcula como `Ingresos - Egresos`
+- se muestran los movimientos recientes
+- la salida automática por pago completo queda asociada al registro comercial
+
+### RF-07. Ganancias y gastos opcionales
+El sistema debe permitir calcular la ganancia neta en un rango de fechas.
+
+**Criterios de aceptación**
+- se filtra por rango de fechas
+- la ganancia base se calcula como `Pagado - Comisiones - Costo del producto`
+- se pueden agregar gastos opcionales con `Nombre` y `Costo`
+- la ganancia neta descuenta esos gastos extra
+
+### RF-08. Auditoría
 El sistema debe registrar acciones relevantes.
 
 **Criterios de aceptación**
 - al crear un registro se genera auditoría
 - se almacena usuario, fecha y detalle
 
-### RF-07. API de autenticación
+### RF-09. API de autenticación
 La API debe permitir obtener un `JWT` usando las credenciales del sistema web.
 
 Endpoint:
 - `POST /api/auth/login`
 
-### RF-08. API de registros autenticada
+### RF-10. API de registros autenticada
 La API debe permitir crear registros usando `JWT`.
 
 Endpoint:
@@ -135,7 +161,7 @@ Endpoint:
 - crea registro si no existe el `Celular`
 - no modifica si el `Celular` ya existe
 
-### RF-09. Integración con `n8n`
+### RF-11. Integración con `n8n`
 La API debe permitir recibir registros desde automatizaciones.
 
 Endpoint:
@@ -161,6 +187,7 @@ Payload esperado:
 - usar `Prospecto` como estado por defecto si no se envía uno
 - calcular saldo pendiente como `ProductAmount - PaidAmount`, nunca menor a `0`
 - resolver precios por cantidad del producto
+- sincronizar stock con el estado de pago del registro
 
 ## 8. Modelo funcional
 Entidades principales:
@@ -169,6 +196,9 @@ Entidades principales:
 - `StatusCatalog`
 - `Product`
 - `ProductPrice`
+- `ProductStockMovement`
+- `CustomerRecordPayment`
+- `Expense`
 - `AuditLog`
 - usuarios y roles de `Identity`
 
@@ -211,6 +241,18 @@ Puertos de contenedor definidos:
 2. recibir token
 3. usar token en `POST /api/records`
 
+### Flujo D. Pago completo y salida autom?tica de stock
+1. registrar pagos al `CustomerRecord`
+2. cuando `BalanceDue` llega a `0`, crear una salida de stock
+3. dejar nota con `Celular` y `Fecha`
+4. vincular el movimiento al registro
+
+### Flujo E. Extorno de pago y reversi?n de stock
+1. marcar el pago como extornado
+2. recalcular `BalanceDue`
+3. si el registro deja de estar totalmente pagado, eliminar la salida autom?tica asociada
+4. si vuelve a quedar totalmente pagado, recrear la salida autom?tica
+
 ## 11. Requerimientos no funcionales
 
 - seguridad con `Identity`, roles, `JWT` y `ApiKey`
@@ -248,6 +290,8 @@ Archivos clave:
 - `OldSchoolLab/Data/ApplicationDbContext.cs`
 - `OldSchoolLab/Data/SeedData.cs`
 - `OldSchoolLab/Pages/Records/Create.cshtml.cs`
+- `OldSchoolLab/Pages/Admin/Inventory/Index.cshtml.cs`
+- `OldSchoolLab/Pages/Admin/Inventory/Index.cshtml`
 - `../OldSchoolApi/OldSchoolApi/Program.cs`
 - `../OldSchoolApi/OldSchoolApi/Controllers/AuthController.cs`
 - `../OldSchoolApi/OldSchoolApi/Controllers/RecordsController.cs`

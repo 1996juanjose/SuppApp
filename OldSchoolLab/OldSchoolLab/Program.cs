@@ -4,11 +4,18 @@ using Microsoft.Extensions.FileProviders;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
 using OldSchoolLab.Services;
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
 
 var builder = WebApplication.CreateBuilder(args);
 
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+builder.Services.Configure<RouteOptions>(options =>
+{
+    options.LowercaseUrls = true;
+});
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 

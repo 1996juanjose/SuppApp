@@ -14,6 +14,11 @@
     <div class="card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
+        @if (TempData["WarningMessage"] is string warningMessage)
+        {
+            <div class="alert alert-warning">@warningMessage</div>
+        }
+
         <div class="row g-3">
             <div class="col-md-3">
                 <label asp-for="Input.StatusCatalogId" class="form-label"></label>
@@ -60,6 +65,7 @@
                     <option value="">Seleccione producto</option>
                 </select>
                 <span asp-validation-for="Input.Quantity" class="text-danger"></span>
+                <div class="form-text text-danger d-none" id="stockWarning"></div>
             </div>
             <div class="col-md-3">
                 <label asp-for="Input.PaidAmount" class="form-label"></label>
@@ -109,6 +115,24 @@
             </div>
             <div class="col-md-4">
                 <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Comisión</div>
+                    <div class="fs-4 fw-semibold" id="commissionPreview">S/ 0.00</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Costo compra</div>
+                    <div class="fs-4 fw-semibold" id="costPreview">S/ 0.00</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
+                    <div class="text-muted small">Stock disponible</div>
+                    <div class="fs-4 fw-semibold" id="stockPreview">0</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded p-3 bg-light">
                     <div class="text-muted small">Pagado</div>
                     <div class="fs-4 fw-semibold" id="paidPreview">S/ 0.00</div>
                 </div>
@@ -131,12 +155,19 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         const priceLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductPriceLookup));
+        const commissionLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductCommissionLookup));
+        const costLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductPurchaseCostLookup));
+        const stockLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductStockLookup));
         const productId = document.getElementById('productId');
         const quantity = document.getElementById('quantity');
         const paidAmount = document.getElementById('paidAmount');
         const productAmount = document.getElementById('productAmount');
+        const commissionPreview = document.getElementById('commissionPreview');
+        const costPreview = document.getElementById('costPreview');
+        const stockPreview = document.getElementById('stockPreview');
         const paidPreview = document.getElementById('paidPreview');
         const balanceDue = document.getElementById('balanceDue');
+        const stockWarning = document.getElementById('stockWarning');
         const initialQuantity = quantity.dataset.current;
 
         function formatCurrency(value) {
@@ -180,11 +211,28 @@
             const selectedQuantity = quantity.value;
             const paid = parseDecimal(paidAmount.value);
             const total = priceLookup[selectedProduct]?.[selectedQuantity] ?? 0;
+            const commissionRate = commissionLookup[selectedProduct]?.[selectedQuantity] ?? 0;
+            const purchaseUnitCost = costLookup[selectedProduct] ?? 0;
+            const stock = stockLookup[selectedProduct] ?? 0;
+            const commission = total * commissionRate / 100;
+            const cost = purchaseUnitCost * Number(selectedQuantity || 0);
             const balance = Math.max(0, total - paid);
+            const remaining = stock - Number(selectedQuantity || 0);
 
             productAmount.textContent = formatCurrency(total);
+            commissionPreview.textContent = formatCurrency(commission);
+            costPreview.textContent = formatCurrency(cost);
+            stockPreview.textContent = stock.toString();
             paidPreview.textContent = formatCurrency(paid);
             balanceDue.textContent = formatCurrency(balance);
+
+            if (selectedProduct && Number(selectedQuantity || 0) > 0 && remaining < 0) {
+                stockWarning.textContent = `Aviso: este registro dejará el stock en ${remaining}.`;
+                stockWarning.classList.remove('d-none');
+            } else {
+                stockWarning.textContent = '';
+                stockWarning.classList.add('d-none');
+            }
         }
 
         productId.addEventListener('change', () => {

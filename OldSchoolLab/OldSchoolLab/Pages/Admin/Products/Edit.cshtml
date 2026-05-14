@@ -20,6 +20,11 @@
                 <input asp-for="Input.Name" class="form-control" />
                 <span asp-validation-for="Input.Name" class="text-danger"></span>
             </div>
+            <div class="col-md-3">
+                <label asp-for="Input.PurchaseUnitCost" class="form-label"></label>
+                <input asp-for="Input.PurchaseUnitCost" class="form-control" min="0" step="0.01" />
+                <span asp-validation-for="Input.PurchaseUnitCost" class="text-danger"></span>
+            </div>
             <div class="col-md-3 d-flex align-items-end">
                 <div class="form-check mb-2">
                     <input asp-for="Input.IsActive" class="form-check-input" />
@@ -64,6 +69,45 @@
         </table>
 
         <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddRow">+ Agregar precio</button>
+
+        <hr class="my-4" />
+
+        <h5 class="mb-3">Comisiones por cantidad</h5>
+        <p class="text-muted small">Cada fila define el porcentaje de comisión por N unidades.</p>
+
+        <table class="table table-bordered align-middle" id="commissionTable">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:150px">Cantidad</th>
+                    <th style="width:200px">Comisión (%)</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="commissionBody">
+                @for (int i = 0; i < Model.Input.CommissionTiers.Count; i++)
+                {
+                    <tr>
+                        <input type="hidden" name="Input.CommissionTiers[@i].Id" value="@Model.Input.CommissionTiers[i].Id" />
+                        <input type="hidden" name="Input.CommissionTiers[@i].Delete" value="false" class="commissionDeleteFlag" />
+                        <td>
+                            <input type="number" name="Input.CommissionTiers[@i].Quantity"
+                                   value="@Model.Input.CommissionTiers[i].Quantity"
+                                   class="form-control" min="1" max="999" required />
+                        </td>
+                        <td>
+                            <input type="number" name="Input.CommissionTiers[@i].CommissionRate"
+                                   value="@Model.Input.CommissionTiers[i].CommissionRate"
+                                   class="form-control" min="0" max="100" step="0.01" required />
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-commission-row">Eliminar</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAddCommissionRow">+ Agregar comisión</button>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
         <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>
@@ -75,6 +119,7 @@
     <partial name="_ValidationScriptsPartial" />
     <script>
         let rowIndex = @Model.Input.Prices.Count;
+        let commissionRowIndex = @Model.Input.CommissionTiers.Count;
 
         document.getElementById('btnAddRow').addEventListener('click', () => {
             const tbody = document.getElementById('pricesBody');
@@ -89,10 +134,36 @@
             rowIndex++;
         });
 
+        document.getElementById('btnAddCommissionRow').addEventListener('click', () => {
+            const tbody = document.getElementById('commissionBody');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <input type="hidden" name="Input.CommissionTiers[${commissionRowIndex}].Delete" value="false" class="commissionDeleteFlag" />
+                <td><input type="number" name="Input.CommissionTiers[${commissionRowIndex}].Quantity" class="form-control" min="1" max="999" required /></td>
+                <td><input type="number" name="Input.CommissionTiers[${commissionRowIndex}].CommissionRate" class="form-control" min="0" max="100" step="0.01" required /></td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger btn-remove-commission-row">Eliminar</button></td>
+            `;
+            tbody.appendChild(tr);
+            commissionRowIndex++;
+        });
+
         document.getElementById('pricesBody').addEventListener('click', (e) => {
             if (e.target.classList.contains('btn-remove-row')) {
                 const row = e.target.closest('tr');
                 const deleteFlag = row.querySelector('.deleteFlag');
+                if (deleteFlag) {
+                    deleteFlag.value = 'true';
+                    row.style.display = 'none';
+                } else {
+                    row.remove();
+                }
+            }
+        });
+
+        document.getElementById('commissionBody').addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove-commission-row')) {
+                const row = e.target.closest('tr');
+                const deleteFlag = row.querySelector('.commissionDeleteFlag');
                 if (deleteFlag) {
                     deleteFlag.value = 'true';
                     row.style.display = 'none';

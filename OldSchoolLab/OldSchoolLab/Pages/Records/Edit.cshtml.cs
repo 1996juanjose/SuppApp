@@ -31,6 +31,9 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
     public List<SelectListItem> StatusOptions { get; private set; } = new();
     public List<SelectListItem> ProductOptions { get; private set; } = new();
     public Dictionary<int, Dictionary<int, decimal>> ProductPriceLookup { get; private set; } = new();
+    public Dictionary<int, Dictionary<int, decimal>> ProductCommissionLookup { get; private set; } = new();
+    public Dictionary<int, decimal> ProductPurchaseCostLookup { get; private set; } = new();
+    public Dictionary<int, int> ProductStockLookup { get; private set; } = new();
     public IReadOnlyList<CustomerRecordPayment> Payments { get; private set; } = [];
 
     public class InputModel
@@ -152,15 +155,22 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             return NotFound();
         }
 
-        var productAmount = await ResolveProductAmountAsync(Input.ProductId, Input.Quantity);
-        if (Input.ProductId.HasValue && productAmount is null)
+        var productDetails = await ResolveProductDetailsAsync(Input.ProductId, Input.Quantity);
+        if (Input.ProductId.HasValue && productDetails is null)
         {
             ModelState.AddModelError("Input.Quantity", "No existe un precio configurado para ese producto y cantidad.");
             return Page();
         }
 
-        var total = productAmount ?? 0m;
+        var total = productDetails?.SaleAmount ?? 0m;
         var paidAmount = GetActivePaidAmount(record.Payments);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var userName = User.Identity?.Name ?? string.Empty;
+        var wasClient = IsClientStatus(record.StatusCatalogId);
+        var willBeClient = IsClientStatus(Input.StatusCatalogId);
+        var oldProductId = record.ProductId;
+        var oldQuantity = record.Quantity;
+        var oldPurchaseUnitCost = record.PurchaseUnitCost;
 
         var cambios = new Dictionary<string, string>();
         if (record.StatusCatalogId != Input.StatusCatalogId)
@@ -197,6 +207,10 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.ProductId = Input.ProductId;
         record.Quantity = Input.ProductId.HasValue ? Input.Quantity : 1;
         record.ProductAmount = total;
+        record.PurchaseUnitCost = productDetails?.PurchaseUnitCost ?? 0m;
+        record.CostAmount = productDetails?.CostAmount ?? 0m;
+        record.CommissionRate = productDetails?.CommissionRate ?? 0m;
+        record.CommissionAmount = productDetails?.CommissionAmount ?? 0m;
         record.PaidAmount = paidAmount;
         record.BalanceDue = Math.Max(0m, total - paidAmount);
         record.FolderPath = Input.FolderPath?.Trim() ?? string.Empty;
@@ -204,13 +218,15 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.Clave = Input.Clave?.Trim() ?? string.Empty;
         record.Guia = Input.Guia?.Trim() ?? string.Empty;
 
+        await ApplyStockChangesAsync(record.Id, oldProductId, oldQuantity, oldPurchaseUnitCost, wasClient, Input.ProductId, Input.Quantity, record.PurchaseUnitCost, willBeClient, userId, userName, record.RecordDate);
+
         await db.SaveChangesAsync();
 
         if (cambios.Count > 0)
         {
             await audit.LogAsync("Registro", record.Id, "Actualizado",
-            User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty,
-                User.Identity?.Name ?? string.Empty,
+                userId,
+                userName,
                 cambios);
         }
 
@@ -270,6 +286,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
         await db.SaveChangesAsync();
+        await SyncAutomaticSaleMovementAsync(record, userId, userName);
 
         await audit.LogAsync("Registro", record.Id, "Pago agregado",
             userId,
@@ -321,6 +338,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
         await db.SaveChangesAsync();
+        await SyncAutomaticSaleMovementAsync(record, userId, userName);
 
         await audit.LogAsync("Registro", record.Id, "Pago extornado",
             userId,
@@ -351,6 +369,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             .AsNoTracking()
             .Where(x => x.IsActive && (!User.GetCompanyId().HasValue || x.CompanyId == User.GetCompanyId().Value))
             .Include(x => x.Prices)
+            .Include(x => x.CommissionTiers)
+            .Include(x => x.StockMovements)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -365,6 +385,16 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         ProductPriceLookup = products.ToDictionary(
             x => x.Id,
             x => x.Prices.ToDictionary(p => p.Quantity, p => p.Price));
+
+        ProductCommissionLookup = products.ToDictionary(
+            x => x.Id,
+            x => x.CommissionTiers.ToDictionary(p => p.Quantity, p => p.CommissionRate));
+
+        ProductPurchaseCostLookup = products.ToDictionary(x => x.Id, x => x.PurchaseUnitCost);
+
+        ProductStockLookup = products.ToDictionary(
+            x => x.Id,
+            x => x.StockMovements.Sum(m => m.MovementType == "Egreso" ? -m.Quantity : m.Quantity));
     }
 
     private async Task LoadPaymentsAsync(int recordId)
@@ -403,6 +433,51 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         return payments.Where(x => !x.IsReversed).Sum(x => x.Amount);
     }
 
+    private async Task SyncAutomaticSaleMovementAsync(CustomerRecord record, string userId, string userName)
+    {
+        if (!record.ProductId.HasValue)
+        {
+            return;
+        }
+
+        var saleMovements = await db.ProductStockMovements
+            .Where(x => x.CustomerRecordId == record.Id && (x.MovementType == "Egreso" || x.MovementType == "Salida"))
+            .ToListAsync();
+
+        if (record.BalanceDue <= 0m)
+        {
+            if (saleMovements.Count > 0)
+            {
+                return;
+            }
+
+            db.ProductStockMovements.Add(new ProductStockMovement
+            {
+                ProductId = record.ProductId.Value,
+                CustomerRecordId = record.Id,
+                Quantity = record.Quantity,
+                UnitCost = record.PurchaseUnitCost,
+                MovementType = "Egreso",
+                MovementDate = DateTime.Today,
+                CreatedAt = DateTime.Now,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName,
+                Notes = $"Salida por pago completo del registro {record.Cellphone} - Fecha {record.RecordDate:yyyy-MM-dd}"
+            });
+
+            await db.SaveChangesAsync();
+            return;
+        }
+
+        if (saleMovements.Count == 0)
+        {
+            return;
+        }
+
+        db.ProductStockMovements.RemoveRange(saleMovements);
+        await db.SaveChangesAsync();
+    }
+
     private void NormalizeInputWithoutProduct()
     {
         if (Input.ProductId.HasValue)
@@ -414,19 +489,134 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         ModelState.Remove($"{nameof(Input)}.{nameof(Input.Quantity)}");
     }
 
-    private async Task<decimal?> ResolveProductAmountAsync(int? productId, int quantity)
+    private async Task<ProductSnapshot?> ResolveProductDetailsAsync(int? productId, int quantity)
     {
         if (!productId.HasValue)
         {
             return null;
         }
 
-        var productPrice = await db.ProductPrices
+        var product = await db.Products
             .AsNoTracking()
-            .Where(x => x.ProductId == productId.Value && x.Quantity == quantity)
-            .Where(x => !User.GetCompanyId().HasValue || x.Product.CompanyId == User.GetCompanyId().Value)
-            .FirstOrDefaultAsync();
+            .Include(x => x.Prices)
+            .Include(x => x.CommissionTiers)
+            .Include(x => x.StockMovements)
+            .FirstOrDefaultAsync(x => x.Id == productId.Value && (!User.GetCompanyId().HasValue || x.CompanyId == User.GetCompanyId().Value));
 
-        return productPrice?.Price;
+        if (product is null)
+        {
+            return null;
+        }
+
+        var saleAmount = product.Prices.FirstOrDefault(x => x.Quantity == quantity)?.Price;
+        if (saleAmount is null)
+        {
+            return null;
+        }
+
+        var commissionRate = product.CommissionTiers.FirstOrDefault(x => x.Quantity == quantity)?.CommissionRate ?? 0m;
+
+        return new ProductSnapshot(
+            saleAmount.Value,
+            product.PurchaseUnitCost,
+            commissionRate,
+            Math.Round(saleAmount.Value * commissionRate / 100m, 2),
+            Math.Round(product.PurchaseUnitCost * quantity, 2));
     }
+
+    private async Task ApplyStockChangesAsync(
+        int recordId,
+        int? oldProductId,
+        int oldQuantity,
+        decimal oldPurchaseUnitCost,
+        bool wasClient,
+        int? newProductId,
+        int newQuantity,
+        decimal newPurchaseUnitCost,
+        bool willBeClient,
+        string userId,
+        string userName,
+        DateTime movementDate)
+    {
+        if (wasClient && willBeClient
+            && oldProductId == newProductId
+            && oldQuantity == newQuantity)
+        {
+            return;
+        }
+
+        if (wasClient && oldProductId.HasValue)
+        {
+            db.ProductStockMovements.Add(new ProductStockMovement
+            {
+                ProductId = oldProductId.Value,
+                CustomerRecordId = recordId,
+                Quantity = oldQuantity,
+                UnitCost = oldPurchaseUnitCost,
+                MovementType = "Ingreso",
+                MovementDate = movementDate,
+                CreatedAt = DateTime.Now,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName,
+                Notes = $"Reverso por actualización de registro #{recordId}"
+            });
+        }
+
+        if (willBeClient && newProductId.HasValue)
+        {
+            db.ProductStockMovements.Add(new ProductStockMovement
+            {
+                ProductId = newProductId.Value,
+                CustomerRecordId = recordId,
+                Quantity = newQuantity,
+                UnitCost = newPurchaseUnitCost,
+                MovementType = "Egreso",
+                MovementDate = movementDate,
+                CreatedAt = DateTime.Now,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName,
+                Notes = $"Salida por actualización de registro #{recordId}"
+            });
+        }
+
+        if ((wasClient && oldProductId.HasValue) || (willBeClient && newProductId.HasValue))
+        {
+            var selectedProductId = newProductId ?? oldProductId;
+            if (selectedProductId.HasValue)
+            {
+                var availableStock = ProductStockLookup.TryGetValue(selectedProductId.Value, out var stock) ? stock : 0;
+                var nextStock = availableStock;
+
+                if (wasClient && oldProductId.HasValue)
+                {
+                    nextStock += oldQuantity;
+                }
+
+                if (willBeClient && newProductId.HasValue)
+                {
+                    nextStock -= newQuantity;
+                }
+
+                if (nextStock < 0)
+                {
+                    TempData["WarningMessage"] = $"Aviso: el stock quedará en {nextStock} para el producto seleccionado.";
+                }
+            }
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    private bool IsClientStatus(int statusCatalogId)
+    {
+        var status = StatusOptions.FirstOrDefault(x => int.TryParse(x.Value, out var id) && id == statusCatalogId);
+        return status?.Text is "Clientes";
+    }
+
+    private sealed record ProductSnapshot(
+        decimal SaleAmount,
+        decimal PurchaseUnitCost,
+        decimal CommissionRate,
+        decimal CommissionAmount,
+        decimal CostAmount);
 }

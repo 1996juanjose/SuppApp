@@ -39,6 +39,14 @@ public class CustomerRecord
 
     public decimal ProductAmount { get; set; }
 
+    public decimal PurchaseUnitCost { get; set; }
+
+    public decimal CostAmount { get; set; }
+
+    public decimal CommissionRate { get; set; }
+
+    public decimal CommissionAmount { get; set; }
+
     public decimal PaidAmount { get; set; }
 
     public decimal BalanceDue { get; set; }
@@ -66,4 +74,6 @@ public class CustomerRecord
     public decimal ActivePaidAmount => Payments.Where(x => !x.IsReversed).Sum(x => x.Amount);
 
     public decimal CalculatedBalanceDue => Math.Max(0m, ProductAmount - ActivePaidAmount);
+
+    public decimal NetProfit => ActivePaidAmount - CommissionAmount - CostAmount;
 }

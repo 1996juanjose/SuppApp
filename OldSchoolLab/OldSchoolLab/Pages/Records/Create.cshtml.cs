@@ -24,6 +24,9 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
     public List<SelectListItem> StatusOptions { get; private set; } = new();
     public List<SelectListItem> ProductOptions { get; private set; } = new();
     public Dictionary<int, Dictionary<int, decimal>> ProductPriceLookup { get; private set; } = new();
+    public Dictionary<int, Dictionary<int, decimal>> ProductCommissionLookup { get; private set; } = new();
+    public Dictionary<int, decimal> ProductPurchaseCostLookup { get; private set; } = new();
+    public Dictionary<int, int> ProductStockLookup { get; private set; } = new();
 
     public class InputModel
     {
@@ -112,8 +115,8 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             return Page();
         }
 
-        var productAmount = await ResolveProductAmountAsync(Input.ProductId, Input.Quantity, companyId.Value);
-        if (Input.ProductId.HasValue && productAmount is null)
+        var productDetails = await ResolveProductDetailsAsync(Input.ProductId, Input.Quantity, companyId.Value);
+        if (Input.ProductId.HasValue && productDetails is null)
         {
             ModelState.AddModelError("Input.Quantity", "No existe un precio configurado para ese producto y cantidad.");
             return Page();
@@ -137,9 +140,10 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             return Page();
         }
 
-        var total = productAmount ?? 0m;
+        var total = productDetails?.SaleAmount ?? 0m;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         var userName = User.Identity?.Name ?? string.Empty;
+        var isClientStatus = IsClientStatus(Input.StatusCatalogId);
 
         var record = new CustomerRecord
         {
@@ -153,6 +157,10 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             ProductId = Input.ProductId,
             Quantity = Input.ProductId.HasValue ? Input.Quantity : 1,
             ProductAmount = total,
+            PurchaseUnitCost = productDetails?.PurchaseUnitCost ?? 0m,
+            CostAmount = productDetails?.CostAmount ?? 0m,
+            CommissionRate = productDetails?.CommissionRate ?? 0m,
+            CommissionAmount = productDetails?.CommissionAmount ?? 0m,
             PaidAmount = 0m,
             BalanceDue = total,
             FolderPath = Input.FolderPath?.Trim() ?? string.Empty,
@@ -165,6 +173,34 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
 
         db.CustomerRecords.Add(record);
         await db.SaveChangesAsync();
+
+        if (isClientStatus && productDetails is not null && Input.ProductId.HasValue)
+        {
+            db.ProductStockMovements.Add(new ProductStockMovement
+            {
+                ProductId = Input.ProductId.Value,
+                CustomerRecordId = record.Id,
+                Quantity = Input.Quantity,
+                UnitCost = productDetails.PurchaseUnitCost,
+                MovementType = "Egreso",
+                MovementDate = record.RecordDate,
+                CreatedAt = DateTime.Now,
+                CreatedByUserId = userId,
+                CreatedByUserName = userName,
+                Notes = $"Salida por registro #{record.Id}"
+            });
+
+            await db.SaveChangesAsync();
+        }
+
+        if (productDetails is not null && isClientStatus)
+        {
+            var availableStock = ProductStockLookup.TryGetValue(Input.ProductId ?? 0, out var stock) ? stock : 0;
+            if (availableStock < Input.Quantity)
+            {
+                TempData["WarningMessage"] = $"Aviso: el producto seleccionando tiene stock insuficiente ({availableStock} disponible, se registró {Input.Quantity}).";
+            }
+        }
 
         if (initialPaymentAmount > 0)
         {
@@ -218,6 +254,8 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             .AsNoTracking()
             .Where(x => x.IsActive && x.CompanyId == companyId)
             .Include(x => x.Prices)
+            .Include(x => x.CommissionTiers)
+            .Include(x => x.StockMovements)
             .OrderBy(x => x.Name)
             .ToListAsync();
 
@@ -232,23 +270,65 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
         ProductPriceLookup = products.ToDictionary(
             x => x.Id,
             x => x.Prices.ToDictionary(p => p.Quantity, p => p.Price));
+
+        ProductCommissionLookup = products.ToDictionary(
+            x => x.Id,
+            x => x.CommissionTiers.ToDictionary(p => p.Quantity, p => p.CommissionRate));
+
+        ProductPurchaseCostLookup = products.ToDictionary(x => x.Id, x => x.PurchaseUnitCost);
+
+        ProductStockLookup = products.ToDictionary(
+            x => x.Id,
+            x => x.StockMovements.Sum(m => m.MovementType == "Egreso" ? -m.Quantity : m.Quantity));
     }
 
-    private async Task<decimal?> ResolveProductAmountAsync(int? productId, int quantity, int companyId)
+    private async Task<ProductSnapshot?> ResolveProductDetailsAsync(int? productId, int quantity, int companyId)
     {
         if (!productId.HasValue)
         {
             return null;
         }
 
-        var productPrice = await db.ProductPrices
+        var product = await db.Products
             .AsNoTracking()
-            .Where(x => x.ProductId == productId.Value && x.Quantity == quantity)
-            .Where(x => x.Product.CompanyId == companyId)
-            .FirstOrDefaultAsync();
+            .Include(x => x.Prices)
+            .Include(x => x.CommissionTiers)
+            .Include(x => x.StockMovements)
+            .FirstOrDefaultAsync(x => x.Id == productId.Value && x.CompanyId == companyId);
 
-        return productPrice?.Price;
+        if (product is null)
+        {
+            return null;
+        }
+
+        var saleAmount = product.Prices.FirstOrDefault(x => x.Quantity == quantity)?.Price;
+        if (saleAmount is null)
+        {
+            return null;
+        }
+
+        var commissionRate = product.CommissionTiers.FirstOrDefault(x => x.Quantity == quantity)?.CommissionRate ?? 0m;
+
+        return new ProductSnapshot(
+            saleAmount.Value,
+            product.PurchaseUnitCost,
+            commissionRate,
+            Math.Round(saleAmount.Value * commissionRate / 100m, 2),
+            Math.Round(product.PurchaseUnitCost * quantity, 2));
     }
+
+    private bool IsClientStatus(int statusCatalogId)
+    {
+        var status = StatusOptions.FirstOrDefault(x => int.TryParse(x.Value, out var id) && id == statusCatalogId);
+        return status?.Text is "Cliente" or "Clientes";
+    }
+
+    private sealed record ProductSnapshot(
+        decimal SaleAmount,
+        decimal PurchaseUnitCost,
+        decimal CommissionRate,
+        decimal CommissionAmount,
+        decimal CostAmount);
 
     private void NormalizeInputWithoutProduct()
     {

@@ -49,16 +49,13 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             query = query.Where(x => x.RecordDate.Date == today);
         }
 
-        // Aplicar ordenamiento
+    
         Records = await query
             .OrderByDescending(x => x.RecordDate)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
-        //Records = await BuildFilteredRecordsQuery()
-        //    .OrderByDescending(x => x.RecordDate)
-        //    .ThenByDescending(x => x.Id)
-        //    .ToListAsync();
+   
 
         TotalFilteredRecords = Records.Count;
         TotalPaidAmount = Records.Sum(x => x.ActivePaidAmount);

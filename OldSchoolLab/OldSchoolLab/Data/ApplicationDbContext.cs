@@ -10,8 +10,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<StatusCatalog> Statuses => Set<StatusCatalog>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductPrice> ProductPrices => Set<ProductPrice>();
+    public DbSet<ProductCommissionTier> ProductCommissionTiers => Set<ProductCommissionTier>();
+    public DbSet<ProductStockMovement> ProductStockMovements => Set<ProductStockMovement>();
     public DbSet<CustomerRecord> CustomerRecords => Set<CustomerRecord>();
     public DbSet<CustomerRecordPayment> CustomerRecordPayments => Set<CustomerRecordPayment>();
+    public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -38,8 +41,51 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(x => x.Price)
             .HasPrecision(10, 2);
 
+        builder.Entity<Product>()
+            .Property(x => x.PurchaseUnitCost)
+            .HasPrecision(10, 2);
+
+        builder.Entity<ProductCommissionTier>()
+            .HasIndex(x => new { x.ProductId, x.Quantity })
+            .IsUnique();
+
+        builder.Entity<ProductCommissionTier>()
+            .Property(x => x.CommissionRate)
+            .HasPrecision(5, 2);
+
+        builder.Entity<ProductStockMovement>()
+            .HasIndex(x => new { x.ProductId, x.MovementDate });
+
+        builder.Entity<ProductStockMovement>()
+            .Property(x => x.MovementDate)
+            .HasColumnType("date");
+
+        builder.Entity<ProductStockMovement>()
+            .Property(x => x.CreatedAt)
+            .HasColumnType("timestamp without time zone");
+
+        builder.Entity<ProductStockMovement>()
+            .Property(x => x.UnitCost)
+            .HasPrecision(10, 2);
+
         builder.Entity<CustomerRecord>()
             .Property(x => x.ProductAmount)
+            .HasPrecision(10, 2);
+
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.PurchaseUnitCost)
+            .HasPrecision(10, 2);
+
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.CostAmount)
+            .HasPrecision(10, 2);
+
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.CommissionRate)
+            .HasPrecision(5, 2);
+
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.CommissionAmount)
             .HasPrecision(10, 2);
 
         builder.Entity<CustomerRecord>()
@@ -54,6 +100,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(x => x.Amount)
             .HasPrecision(10, 2);
 
+        builder.Entity<Expense>()
+            .Property(x => x.Amount)
+            .HasPrecision(10, 2);
+
         builder.Entity<CustomerRecord>()
             .Property(x => x.RecordDate)
             .HasColumnType("date");
@@ -63,6 +113,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasColumnType("date");
 
         builder.Entity<CustomerRecordPayment>()
+            .Property(x => x.CreatedAt)
+            .HasColumnType("timestamp without time zone");
+
+        builder.Entity<Expense>()
+            .Property(x => x.ExpenseDate)
+            .HasColumnType("date");
+
+        builder.Entity<Expense>()
             .Property(x => x.CreatedAt)
             .HasColumnType("timestamp without time zone");
 
@@ -85,6 +143,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .WithMany(x => x.Products)
             .HasForeignKey(x => x.CompanyId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Product>()
+            .HasMany(x => x.CommissionTiers)
+            .WithOne(x => x.Product)
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Product>()
+            .HasMany(x => x.StockMovements)
+            .WithOne(x => x.Product)
+            .HasForeignKey(x => x.ProductId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<StatusCatalog>()
             .HasOne(x => x.Company)
@@ -116,6 +186,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(x => x.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Entity<ProductStockMovement>()
+            .HasOne(x => x.CustomerRecord)
+            .WithMany()
+            .HasForeignKey(x => x.CustomerRecordId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.Entity<CustomerRecordPayment>()
             .HasOne(x => x.CustomerRecord)
             .WithMany(x => x.Payments)
@@ -124,5 +200,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         builder.Entity<CustomerRecordPayment>()
             .HasIndex(x => new { x.CustomerRecordId, x.PaymentDate });
+
+        builder.Entity<Expense>()
+            .HasIndex(x => new { x.CompanyId, x.ExpenseDate });
+
+        builder.Entity<Expense>()
+            .HasOne(x => x.Company)
+            .WithMany()
+            .HasForeignKey(x => x.CompanyId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
