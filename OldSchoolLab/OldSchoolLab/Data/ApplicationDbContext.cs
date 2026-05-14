@@ -108,6 +108,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(x => x.RecordDate)
             .HasColumnType("date");
 
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.CreatedAt)
+            .HasColumnType("timestamp without time zone");
+
         builder.Entity<CustomerRecordPayment>()
             .Property(x => x.PaymentDate)
             .HasColumnType("date");

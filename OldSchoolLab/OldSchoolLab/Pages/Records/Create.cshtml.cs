@@ -150,6 +150,7 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             CompanyId = companyId.Value,
             StatusCatalogId = Input.StatusCatalogId,
             RecordDate = Input.RecordDate,
+            CreatedAt = DateTime.Now,
             Cellphone = Input.Cellphone.Trim(),
             NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty,
             CallActivity = Input.CallActivity?.Trim() ?? string.Empty,

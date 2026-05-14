@@ -17,6 +17,8 @@ public class CustomerRecord
     [DataType(DataType.Date)]
     public DateTime RecordDate { get; set; } = DateTime.Today;
 
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
     [Required]
     [MaxLength(20)]
     public string Cellphone { get; set; } = string.Empty;
