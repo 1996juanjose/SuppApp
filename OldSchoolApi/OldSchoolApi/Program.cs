@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using OldSchoolApi.Data;
 using System.Text;
+using OldSchoolApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,6 +98,17 @@ app.MapGet("/", () => Results.Ok(new
 }));
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+
+app.MapGet("/time", (IConfiguration config) =>
+{
+    var timeZone = AppClock.GetTimeZone(config);
+    return Results.Ok(new
+    {
+        timeZone.Id,
+        utcNow = DateTime.UtcNow,
+        localNow = AppClock.Now(config)
+    });
+});
 
 app.MapControllers();
 

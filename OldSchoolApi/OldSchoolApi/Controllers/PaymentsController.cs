@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolApi.Data;
 using OldSchoolApi.Models;
+using OldSchoolApi.Services;
 using System.Text;
 using System.Text.Json;
 
@@ -110,8 +111,8 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         {
             CustomerRecordId = record.Id,
             Amount = ocrResult.Monto,
-            PaymentDate = DateTime.Today,
-            CreatedAt = DateTime.Now,
+            PaymentDate = AppClock.Today(config),
+            CreatedAt = AppClock.Now(config),
             ProofImagePath = proofPath,
             ProofFileName = proofFileName,
             OperationNumber = ocrResult.NumeroOperacion,
@@ -218,7 +219,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             Directory.CreateDirectory(folder);
 
             var ext = extension.TrimStart('.'); // quita el punto si viene con él
-            var fileName = $"voucher-{celular}-{DateTime.Now:yyyyMMddHHmmss}.{ext}";
+            var fileName = $"voucher-{celular}-{AppClock.Now(config):yyyyMMddHHmmss}.{ext}";
             var fullPath = Path.Combine(folder, fileName);
             System.IO.File.WriteAllBytes(fullPath, bytes);
 

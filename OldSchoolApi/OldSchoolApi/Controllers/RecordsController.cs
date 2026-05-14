@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolApi.Data;
 using OldSchoolApi.Models;
+using OldSchoolApi.Services;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -118,7 +119,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (status is null)
             return BadRequest(new { error = "No se encontró un estado válido en el sistema." });
 
-        var fecha = DateTime.Today;
+        var fecha = AppClock.Today(config);
         if (!string.IsNullOrWhiteSpace(request.AutoCont)
             && DateTime.TryParse(request.AutoCont, out var fechaParsed))
         {
@@ -252,7 +253,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         // Determinar fecha del pago
         var paymentDate = DateTime.TryParse(paymentData.Date, out var parsedDate)
             ? parsedDate.Date
-            : DateTime.Today;
+            : AppClock.Today(config);
 
         // Registrar el pago
         db.CustomerRecordPayments.Add(new CustomerRecordPayment
@@ -260,7 +261,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             CustomerRecordId = record.Id,
             Amount = paymentData.Amount,
             PaymentDate = paymentDate,
-            CreatedAt = DateTime.Now,
+            CreatedAt = AppClock.Now(config),
             ProofImagePath = request.ImageUrl ?? string.Empty,
             ProofFileName = string.Empty,
             CreatedByUserId = "n8n",
