@@ -38,24 +38,19 @@ public class IndexModel(ApplicationDbContext db) : PageModel
 
     public async Task OnGetAsync()
     {
-
-
         await LoadStatusesAsync();
         var today = DateTime.Today;
         var query = BuildFilteredRecordsQuery();
 
         if (!FromDate.HasValue && !ToDate.HasValue)
         {
-            query = query.Where(x => x.RecordDate.Date == today);
+            query = query.Where(x => x.CreatedAt.Date == today);
         }
 
-    
         Records = await query
-            .OrderByDescending(x => x.RecordDate)
+            .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
-
-   
 
         TotalFilteredRecords = Records.Count;
         TotalPaidAmount = Records.Sum(x => x.ActivePaidAmount);
@@ -86,7 +81,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public async Task<IActionResult> OnGetExportFilteredAsync()
     {
         var records = await BuildFilteredRecordsQuery()
-            .OrderByDescending(x => x.RecordDate)
+            .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
@@ -109,16 +104,16 @@ public class IndexModel(ApplicationDbContext db) : PageModel
 
         if (FromDate.HasValue)
         {
-            query = query.Where(x => x.RecordDate >= FromDate.Value.Date);
+            query = query.Where(x => x.CreatedAt >= FromDate.Value.Date);
         }
 
         if (ToDate.HasValue)
         {
-            query = query.Where(x => x.RecordDate <= ToDate.Value.Date);
+            query = query.Where(x => x.CreatedAt < ToDate.Value.Date.AddDays(1));
         }
 
         var records = await query
-            .OrderByDescending(x => x.RecordDate)
+            .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
             .ToListAsync();
 
@@ -214,12 +209,12 @@ public class IndexModel(ApplicationDbContext db) : PageModel
 
         if (FromDate.HasValue)
         {
-            query = query.Where(x => x.RecordDate >= FromDate.Value.Date);
+            query = query.Where(x => x.CreatedAt >= FromDate.Value.Date);
         }
 
         if (ToDate.HasValue)
         {
-            query = query.Where(x => x.RecordDate <= ToDate.Value.Date);
+            query = query.Where(x => x.CreatedAt < ToDate.Value.Date.AddDays(1));
         }
 
         return query;
