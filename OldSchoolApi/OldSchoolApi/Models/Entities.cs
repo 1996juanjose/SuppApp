@@ -7,6 +7,7 @@ public class CustomerRecord
     public int Id { get; set; }
     public int StatusCatalogId { get; set; }
     public DateTime RecordDate { get; set; }
+    public DateTime CreatedAt { get; set; }
 
     [MaxLength(20)]
     public string Cellphone { get; set; } = string.Empty;

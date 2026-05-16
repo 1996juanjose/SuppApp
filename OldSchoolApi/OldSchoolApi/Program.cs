@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using OldSchoolApi.Data;
@@ -74,8 +75,17 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+var paymentProofsPath = Path.Combine(builder.Environment.ContentRootPath, "storage", "payment-proofs");
+Directory.CreateDirectory(paymentProofsPath);
+
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "OldSchoolApi v1"));
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(paymentProofsPath),
+    RequestPath = "/payment-proofs"
+});
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

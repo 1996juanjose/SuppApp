@@ -154,6 +154,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             StatusCatalogId = status.Id,
             CompanyId = status.CompanyId,
             RecordDate = fecha,
+            CreatedAt = AppClock.Now(config),
             Cellphone = celular,
             NameOrReference = request.Nombre?.Trim() ?? string.Empty,
             CallActivity = request.ActividadLlamada?.Trim() ?? string.Empty,
@@ -178,6 +179,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             celular = record.Cellphone,
             estado = status.Name,
             fecha = record.RecordDate.ToString("yyyy-MM-dd"),
+            createdAt = record.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
             nombre = record.NameOrReference
         });
     }
@@ -239,16 +241,26 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             return NotFound(new { error = $"No se encontró un registro para el celular {celular}." });
 
         // Extraer datos del comprobante con IA
-        var paymentData = await ExtractPaymentDataFromImageAsync(request.ImageUrl, request.ImageBase64);
+        PaymentImageResult? paymentData;
+
+        try
+        {
+            paymentData = await ExtractPaymentDataFromImageAsync(request.ImageUrl, request.ImageBase64);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
+        }
 
         if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0)
             return BadRequest(new { error = "No se pudo detectar un comprobante de pago válido en la imagen." });
 
-        // Buscar estado "Clientes"
-        var clientesStatus = await db.Statuses
+        var statusBaseQuery = db.Statuses
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && x.CompanyId == record.CompanyId
-                && (x.Name == "Clientes" || x.Name == "Cliente"));
+            .Where(x => x.IsActive && x.CompanyId == record.CompanyId);
+
+        var clienteStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Cliente" || x.Name == "Clientes");
+        var porPagarStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Por Pagar");
 
         // Determinar fecha del pago
         var paymentDate = DateTime.TryParse(paymentData.Date, out var parsedDate)
@@ -272,8 +284,12 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         record.PaidAmount += paymentData.Amount;
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
-        if (clientesStatus is not null)
-            record.StatusCatalogId = clientesStatus.Id;
+        var statusToApply = record.ProductAmount > 0m && record.PaidAmount >= record.ProductAmount
+            ? clienteStatus
+            : porPagarStatus;
+
+        if (statusToApply is not null)
+            record.StatusCatalogId = statusToApply.Id;
 
         await db.SaveChangesAsync();
 
@@ -285,7 +301,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             monto = paymentData.Amount,
             tipoPago = paymentData.PaymentType,
             fecha = paymentDate.ToString("yyyy-MM-dd"),
-            estadoActualizado = clientesStatus?.Name ?? "sin cambio",
+            estadoActualizado = statusToApply?.Name ?? "sin cambio",
             nuevoPagado = record.PaidAmount,
             nuevoDebe = record.BalanceDue
         });
@@ -295,7 +311,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     {
         var openAiKey = config["OpenAI:ApiKey"];
         if (string.IsNullOrWhiteSpace(openAiKey))
-            return null;
+            throw new InvalidOperationException("No hay ApiKey de OpenAI configurada.");
 
         var imageContent = imageUrl is not null
             ? (object)new { type = "image_url", image_url = new { url = imageUrl } }
@@ -332,7 +348,12 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             new StringContent(json, Encoding.UTF8, "application/json"));
 
         if (!response.IsSuccessStatusCode)
-            return null;
+        {
+            if ((int)response.StatusCode is 401 or 403)
+                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+
+            throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+        }
 
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);

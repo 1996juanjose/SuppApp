@@ -68,54 +68,68 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             return NotFound(new ProcessVoucherResponse { Message = $"No se encontró un registro con el celular {celular}." });
 
         // Extraer monto e info del voucher via OpenAI
-        var ocrResult = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
-        if (ocrResult.Monto <= 0)
+        decimal montoDetectado;
+        string tipoVoucher;
+        string numeroOperacion;
+
+        try
+        {
+            (montoDetectado, tipoVoucher, numeroOperacion) = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(500, new ProcessVoucherResponse
+            {
+                Success = false,
+                Message = ex.Message
+            });
+        }
+
+        if (montoDetectado <= 0)
             return UnprocessableEntity(new ProcessVoucherResponse
             {
                 Message = "No se pudo detectar el monto en la imagen. Verifica que sea un voucher Yape o Plin válido.",
-                TipoVoucher = ocrResult.TipoVoucher
+                TipoVoucher = tipoVoucher
             });
 
         // Validar duplicado por número de operación
-        if (!string.IsNullOrWhiteSpace(ocrResult.NumeroOperacion))
+        if (!string.IsNullOrWhiteSpace(numeroOperacion))
         {
             var duplicado = await db.CustomerRecordPayments
                 .AsNoTracking()
-                .AnyAsync(x => x.OperationNumber == ocrResult.NumeroOperacion && !x.IsReversed);
+                .AnyAsync(x => x.OperationNumber == numeroOperacion && !x.IsReversed);
 
             if (duplicado)
                 return Ok(new ProcessVoucherResponse
                 {
                     Success = false,
-                    Message = $"El voucher con número de operación {ocrResult.NumeroOperacion} ya fue registrado anteriormente.",
-                    MontoDetectado = ocrResult.Monto,
-                    TipoVoucher = ocrResult.TipoVoucher
+                    Message = $"El voucher con número de operación {numeroOperacion} ya fue registrado anteriormente.",
+                    MontoDetectado = montoDetectado,
+                    TipoVoucher = tipoVoucher
                 });
         }
 
-        // Buscar el status "Clientes"
-        var clientesStatus = await db.Statuses
+        var statusBaseQuery = db.Statuses
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && (x.Name == "Clientes" || x.Name == "Cliente"))
-            ?? await db.Statuses
-                .AsNoTracking()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.SortOrder)
-                .FirstOrDefaultAsync();
+            .Where(x => x.IsActive && (!record.CompanyId.HasValue || x.CompanyId == record.CompanyId.Value));
+
+        var clienteStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Cliente" || x.Name == "Clientes");
+        var porPagarStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Por Pagar");
 
         // Guardar imagen como comprobante
-        var (proofPath, proofFileName) = SaveProofImage(request.ImageBase64, request.ImageExtension, celular);
+        var publicBaseUrl = $"{Request.Scheme}://{Request.Host}";
+        var (proofPath, proofFileName) = SaveProofImage(request.ImageBase64, request.ImageExtension, celular, publicBaseUrl);
 
         // Registrar el pago
         var payment = new CustomerRecordPayment
         {
             CustomerRecordId = record.Id,
-            Amount = ocrResult.Monto,
+            Amount = montoDetectado,
             PaymentDate = AppClock.Today(config),
             CreatedAt = AppClock.Now(config),
             ProofImagePath = proofPath,
             ProofFileName = proofFileName,
-            OperationNumber = ocrResult.NumeroOperacion,
+            OperationNumber = numeroOperacion,
             CreatedByUserId = "n8n",
             CreatedByUserName = "n8n"
         };
@@ -123,20 +137,24 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         db.CustomerRecordPayments.Add(payment);
 
         // Actualizar el registro: sumar pago, cambiar estado a Clientes
-        record.PaidAmount += ocrResult.Monto;
+        record.PaidAmount += montoDetectado;
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
-        if (clientesStatus is not null)
-            record.StatusCatalogId = clientesStatus.Id;
+        var statusToApply = record.ProductAmount > 0m && record.PaidAmount >= record.ProductAmount
+            ? clienteStatus
+            : porPagarStatus;
+
+        if (statusToApply is not null)
+            record.StatusCatalogId = statusToApply.Id;
 
         await db.SaveChangesAsync();
 
         return Ok(new ProcessVoucherResponse
         {
             Success = true,
-            Message = $"Pago de S/{ocrResult.Monto:0.00} registrado correctamente para el celular {celular}.",
-            MontoDetectado = ocrResult.Monto,
-            TipoVoucher = ocrResult.TipoVoucher,
+            Message = $"Pago de S/{montoDetectado:0.00} registrado correctamente para el celular {celular}.",
+            MontoDetectado = montoDetectado,
+            TipoVoucher = tipoVoucher,
             RecordId = record.Id,
             PaymentId = payment.Id
         });
@@ -146,8 +164,12 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
     {
         try
         {
-            var openAiKey = config["OpenAI:ApiKey"]
-                ?? throw new InvalidOperationException("Falta configurar OpenAI:ApiKey en appsettings.");
+            var openAiKey = config["OpenAI:ApiKey"];
+            if (string.IsNullOrWhiteSpace(openAiKey))
+                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada.");
+
+            var normalizedBase64 = NormalizeBase64Image(imageBase64);
+            var normalizedExtension = NormalizeImageExtension(extension);
 
             var client = httpClientFactory.CreateClient();
             client.DefaultRequestHeaders.Add("Authorization", $"Bearer {openAiKey}");
@@ -155,6 +177,8 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             var body = new
             {
                 model = "gpt-4o-mini",
+                temperature = 0,
+                response_format = new { type = "json_object" },
                 messages = new[]
                 {
                     new
@@ -166,16 +190,17 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                             {
                                 type = "text",
                                 text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
-                                       "Responde SOLO con un JSON con este formato exacto, sin markdown: " +
-                                       "{\"monto\": 20.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\"} " +
-                                       "Donde 'monto' es el monto en soles, 'tipo' es 'Yape', 'Plin' o 'Desconocido', " +
-                                       "'nro_operacion' es el número de operación o transacción visible en el voucher (solo dígitos, sin espacios). " +
-                                       "Si no encuentras algún campo, usa: monto=0, tipo='Desconocido', nro_operacion=''."
+                                       "Debes detectar cualquier monto visible, pequeño o grande, por ejemplo S/ 3.00, S/ 30.00, S/ 69.00 o S/ 129.00. " +
+                                       "Responde SOLO con un JSON exacto, sin markdown, sin texto extra: " +
+                                       "{\"monto\": 3.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\"}. " +
+                                       "'monto' debe ser un número en soles con 2 decimales si aplica, 'tipo' debe ser 'Yape', 'Plin' o 'Desconocido', " +
+                                       "'nro_operacion' debe ser solo dígitos, sin espacios ni símbolos. " +
+                                       "Si no puedes leer el voucher con seguridad, devuelve {\"monto\": 0, \"tipo\": \"Desconocido\", \"nro_operacion\": \"\"}."
                             },
                             new
                             {
                                 type = "image_url",
-                                image_url = new { url = $"data:image/{extension};base64,{imageBase64}" }
+                                image_url = new { url = $"data:image/{normalizedExtension};base64,{normalizedBase64}" }
                             }
                         }
                     }
@@ -189,6 +214,14 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             var response = await client.PostAsync("https://api.openai.com/v1/chat/completions", httpContent);
             var responseJson = await response.Content.ReadAsStringAsync();
 
+            if (!response.IsSuccessStatusCode)
+            {
+                if ((int)response.StatusCode is 401 or 403)
+                    throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+
+                throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+            }
+
             var doc = JsonDocument.Parse(responseJson);
             var messageContent = doc.RootElement
                 .GetProperty("choices")[0]
@@ -196,12 +229,17 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 .GetProperty("content")
                 .GetString() ?? string.Empty;
 
-            var result = JsonDocument.Parse(messageContent.Trim());
+            var resultJson = ExtractJsonObject(messageContent);
+            var result = JsonDocument.Parse(resultJson);
             var monto = result.RootElement.GetProperty("monto").GetDecimal();
             var tipo = result.RootElement.GetProperty("tipo").GetString() ?? "Desconocido";
             var nroOp = result.RootElement.GetProperty("nro_operacion").GetString() ?? string.Empty;
 
             return (monto, tipo, nroOp);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch
         {
@@ -209,27 +247,81 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         }
     }
 
-    private (string path, string fileName) SaveProofImage(string base64, string extension, string celular)
+    private (string path, string fileName) SaveProofImage(string base64, string extension, string celular, string publicBaseUrl)
     {
         try
         {
-            var bytes = Convert.FromBase64String(base64);
+            var bytes = Convert.FromBase64String(NormalizeBase64Image(base64));
             var folder = config["Storage:PaymentProofsPath"]
                 ?? Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
             Directory.CreateDirectory(folder);
 
-            var ext = extension.TrimStart('.'); // quita el punto si viene con él
+            var ext = NormalizeImageExtension(extension);
             var fileName = $"voucher-{celular}-{AppClock.Now(config):yyyyMMddHHmmss}.{ext}";
             var fullPath = Path.Combine(folder, fileName);
             System.IO.File.WriteAllBytes(fullPath, bytes);
 
             logger.LogInformation("Imagen guardada en: {Path}", fullPath);
-            return ($"/payment-proofs/{fileName}", fileName);
+            var publicPath = string.IsNullOrWhiteSpace(publicBaseUrl)
+                ? $"/payment-proofs/{fileName}"
+                : $"{publicBaseUrl.TrimEnd('/')}/payment-proofs/{fileName}";
+
+            return (publicPath, fileName);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error al guardar imagen del voucher para celular {Celular}", celular);
             return (string.Empty, string.Empty);
         }
+    }
+
+    private static string NormalizeBase64Image(string base64)
+    {
+        const string prefixMarker = ";base64,";
+        var value = base64.Trim();
+
+        var prefixIndex = value.IndexOf(prefixMarker, StringComparison.OrdinalIgnoreCase);
+        if (prefixIndex >= 0)
+        {
+            return value[(prefixIndex + prefixMarker.Length)..];
+        }
+
+        return value;
+    }
+
+    private static string NormalizeImageExtension(string extension)
+    {
+        var value = extension.Trim().ToLowerInvariant();
+
+        if (value.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            value = value[6..];
+        }
+
+        value = value.TrimStart('.');
+
+        return value switch
+        {
+            "jpeg" => "jpeg",
+            "jpg" => "jpeg",
+            "png" => "png",
+            "webp" => "webp",
+            _ => "jpeg"
+        };
+    }
+
+    private static string ExtractJsonObject(string content)
+    {
+        var trimmed = content.Trim();
+
+        var start = trimmed.IndexOf('{');
+        var end = trimmed.LastIndexOf('}');
+
+        if (start >= 0 && end > start)
+        {
+            return trimmed[start..(end + 1)];
+        }
+
+        return trimmed;
     }
 }

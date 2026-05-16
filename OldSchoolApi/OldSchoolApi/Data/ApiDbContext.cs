@@ -30,6 +30,8 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
             .Property(x => x.BalanceDue).HasPrecision(10, 2);
         builder.Entity<CustomerRecord>()
             .Property(x => x.RecordDate).HasColumnType("date");
+        builder.Entity<CustomerRecord>()
+            .Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
         builder.Entity<CustomerRecordPayment>()
             .Property(x => x.Amount).HasPrecision(10, 2);
         builder.Entity<CustomerRecordPayment>()
