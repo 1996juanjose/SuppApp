@@ -71,10 +71,11 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         decimal montoDetectado;
         string tipoVoucher;
         string numeroOperacion;
+        DateTime? yapePaymentDate;
 
         try
         {
-            (montoDetectado, tipoVoucher, numeroOperacion) = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
+            (montoDetectado, tipoVoucher, numeroOperacion, yapePaymentDate) = await ExtractVoucherDataAsync(request.ImageBase64, request.ImageExtension);
         }
         catch (InvalidOperationException ex)
         {
@@ -125,7 +126,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         {
             CustomerRecordId = record.Id,
             Amount = montoDetectado,
-            PaymentDate = AppClock.Today(config),
+            PaymentDate = yapePaymentDate ?? AppClock.Now(config),
             CreatedAt = AppClock.Now(config),
             ProofImagePath = proofPath,
             ProofFileName = proofFileName,
@@ -160,7 +161,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         });
     }
 
-    private async Task<(decimal Monto, string TipoVoucher, string NumeroOperacion)> ExtractVoucherDataAsync(string imageBase64, string extension)
+    private async Task<(decimal Monto, string TipoVoucher, string NumeroOperacion, DateTime? PaymentDateTime)> ExtractVoucherDataAsync(string imageBase64, string extension)
     {
         try
         {
@@ -191,11 +192,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                                 type = "text",
                                 text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
                                        "Debes detectar cualquier monto visible, pequeño o grande, por ejemplo S/ 3.00, S/ 30.00, S/ 69.00 o S/ 129.00. " +
+                                       "Extrae también la fecha y hora exactas del pago. " +
                                        "Responde SOLO con un JSON exacto, sin markdown, sin texto extra: " +
-                                       "{\"monto\": 3.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\"}. " +
+                                       "{\"monto\": 3.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\", \"fecha_hora\": \"2026-05-16 12:24:00\"}. " +
                                        "'monto' debe ser un número en soles con 2 decimales si aplica, 'tipo' debe ser 'Yape', 'Plin' o 'Desconocido', " +
                                        "'nro_operacion' debe ser solo dígitos, sin espacios ni símbolos. " +
-                                       "Si no puedes leer el voucher con seguridad, devuelve {\"monto\": 0, \"tipo\": \"Desconocido\", \"nro_operacion\": \"\"}."
+                                       "'fecha_hora' debe ser la fecha y hora del voucher en formato yyyy-MM-dd HH:mm:ss. " +
+                                       "Si no puedes leer el voucher con seguridad, devuelve {\"monto\": 0, \"tipo\": \"Desconocido\", \"nro_operacion\": \"\", \"fecha_hora\": \"\"}."
                             },
                             new
                             {
@@ -234,8 +237,18 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             var monto = result.RootElement.GetProperty("monto").GetDecimal();
             var tipo = result.RootElement.GetProperty("tipo").GetString() ?? "Desconocido";
             var nroOp = result.RootElement.GetProperty("nro_operacion").GetString() ?? string.Empty;
+            DateTime? paymentDateTime = null;
 
-            return (monto, tipo, nroOp);
+            if (result.RootElement.TryGetProperty("fecha_hora", out var fechaHoraElement))
+            {
+                var fechaHora = fechaHoraElement.GetString();
+                if (!string.IsNullOrWhiteSpace(fechaHora) && DateTime.TryParse(fechaHora, out var parsedPaymentDateTime))
+                {
+                    paymentDateTime = parsedPaymentDateTime;
+                }
+            }
+
+            return (monto, tipo, nroOp, paymentDateTime);
         }
         catch (InvalidOperationException)
         {
@@ -243,7 +256,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         }
         catch
         {
-            return (0m, "Desconocido", string.Empty);
+            return (0m, "Desconocido", string.Empty, null);
         }
     }
 

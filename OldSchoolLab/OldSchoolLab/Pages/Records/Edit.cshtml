@@ -200,7 +200,7 @@
                             @foreach (var payment in Model.Payments)
                             {
                                 <tr>
-                                    <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
+                                    <td>@payment.PaymentDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>@payment.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                                     <td>@(string.IsNullOrWhiteSpace(payment.OperationNumber) ? "-" : payment.OperationNumber)</td>
                                     <td>@($"S/ {payment.Amount:0.00}")</td>

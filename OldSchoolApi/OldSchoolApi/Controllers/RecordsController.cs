@@ -264,7 +264,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
         // Determinar fecha del pago
         var paymentDate = DateTime.TryParse(paymentData.Date, out var parsedDate)
-            ? parsedDate.Date
+            ? parsedDate
             : AppClock.Today(config);
 
         // Registrar el pago
@@ -331,7 +331,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante válido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
+                        text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante válido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
                         },
                         imageContent
                     }

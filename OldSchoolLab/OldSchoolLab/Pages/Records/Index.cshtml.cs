@@ -156,7 +156,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         return new JsonResult(payments.Select(x => new
         {
             x.Id,
-            PaymentDate = x.PaymentDate.ToString("yyyy-MM-dd"),
+            PaymentDate = x.PaymentDate.ToString("yyyy-MM-dd HH:mm:ss"),
             CreatedAt = x.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
             amount = x.Amount,
             x.CreatedByUserName,
