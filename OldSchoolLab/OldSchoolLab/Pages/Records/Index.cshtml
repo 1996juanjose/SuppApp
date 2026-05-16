@@ -86,7 +86,7 @@
                     <th></th>
                 }
                 <th>Estado</th>
-                <th>Fecha</th>
+                <th>Fecha local</th>
                 <th>Celular</th>
                 <th>Nombre / Ref WA</th>
                 <th>Actividad de la llamada</th>
@@ -130,7 +130,7 @@
                         </td>
                     }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
-                    <td>@item.RecordDate.ToString("yyyy-MM-dd")</td>
+                    <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                     <td>@item.Cellphone</td>
                     <td class="text-truncate" style="max-width:120px" title="@item.NameOrReference">@item.NameOrReference</td>
                     <td class="text-truncate" style="max-width:150px" title="@item.CallActivity">@item.CallActivity</td>
@@ -308,6 +308,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                         <tr>
                             <th>Fecha pago</th>
                             <th>Registrado</th>
+                            <th>Cod. operación</th>
                             <th>Monto</th>
                             <th>Estado</th>
                             <th>Usuario</th>

@@ -285,6 +285,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.PaidAmount = GetActivePaidAmount(record.Payments) + payment.Amount;
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
+        await ApplyPaymentStatusAsync(record);
+
         await db.SaveChangesAsync();
         await SyncAutomaticSaleMovementAsync(record, userId, userName);
 
@@ -336,6 +338,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
 
         record.PaidAmount = GetActivePaidAmount(record.Payments);
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
+
+        await ApplyPaymentStatusAsync(record);
 
         await db.SaveChangesAsync();
         await SyncAutomaticSaleMovementAsync(record, userId, userName);
@@ -431,6 +435,23 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
     private static decimal GetActivePaidAmount(IEnumerable<CustomerRecordPayment> payments)
     {
         return payments.Where(x => !x.IsReversed).Sum(x => x.Amount);
+    }
+
+    private async Task ApplyPaymentStatusAsync(CustomerRecord record)
+    {
+        var statusBaseQuery = db.Statuses
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.CompanyId == record.CompanyId);
+
+        var clienteStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Cliente" || x.Name == "Clientes");
+        var porPagarStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Por Pagar");
+
+        var statusToApply = record.ProductAmount > 0m && record.PaidAmount >= record.ProductAmount
+            ? clienteStatus
+            : porPagarStatus;
+
+        if (statusToApply is not null)
+            record.StatusCatalogId = statusToApply.Id;
     }
 
     private async Task SyncAutomaticSaleMovementAsync(CustomerRecord record, string userId, string userName)

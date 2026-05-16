@@ -180,6 +180,7 @@
                             <tr>
                                 <th>Fecha pago</th>
                                 <th>Registrado</th>
+                                <th>Cod. operación</th>
                                 <th>Monto</th>
                                 <th>Estado</th>
                                 <th>Usuario</th>
@@ -191,7 +192,7 @@
                         @if (Model.Payments.Count == 0)
                         {
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">No hay pagos registrados.</td>
+                                <td colspan="8" class="text-center text-muted py-4">No hay pagos registrados.</td>
                             </tr>
                         }
                         else
@@ -201,6 +202,7 @@
                                 <tr>
                                     <td>@payment.PaymentDate.ToString("yyyy-MM-dd")</td>
                                     <td>@payment.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(payment.OperationNumber) ? "-" : payment.OperationNumber)</td>
                                     <td>@($"S/ {payment.Amount:0.00}")</td>
                                     <td>
                                         @if (payment.IsReversed)
@@ -223,7 +225,11 @@
                                         }
                                         else
                                         {
-                                            <a href="@payment.ProofImagePath" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Ver</a>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-secondary btn-proof-preview"
+                                                    data-url="@payment.ProofImagePath">
+                                                Ver
+                                            </button>
                                         }
                                     </td>
                                     <td class="text-end">
