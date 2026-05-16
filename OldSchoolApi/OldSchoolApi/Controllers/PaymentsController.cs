@@ -12,7 +12,7 @@ namespace OldSchoolApi.Controllers;
 [ApiController]
 [Route("api/payments")]
 [Authorize]
-public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, ILogger<PaymentsController> logger) : ControllerBase
+public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, IWebHostEnvironment env, ILogger<PaymentsController> logger) : ControllerBase
 {
     public class ProcessVoucherRequest
     {
@@ -252,8 +252,10 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         try
         {
             var bytes = Convert.FromBase64String(NormalizeBase64Image(base64));
-            var folder = config["Storage:PaymentProofsPath"]
-                ?? Path.Combine(AppContext.BaseDirectory, "storage", "payment-proofs");
+            var configuredFolder = config["Storage:PaymentProofsPath"]?.Trim();
+            var folder = !string.IsNullOrWhiteSpace(configuredFolder) && Path.IsPathRooted(configuredFolder)
+                ? configuredFolder
+                : Path.Combine(env.ContentRootPath, "storage", "payment-proofs");
             Directory.CreateDirectory(folder);
 
             var ext = NormalizeImageExtension(extension);

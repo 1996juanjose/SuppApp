@@ -75,8 +75,10 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-var paymentProofsPath = builder.Configuration["Storage:PaymentProofsPath"]
-    ?? Path.Combine(builder.Environment.ContentRootPath, "storage", "payment-proofs");
+var configuredPaymentProofsPath = builder.Configuration["Storage:PaymentProofsPath"]?.Trim();
+var paymentProofsPath = !string.IsNullOrWhiteSpace(configuredPaymentProofsPath) && Path.IsPathRooted(configuredPaymentProofsPath)
+    ? configuredPaymentProofsPath
+    : Path.Combine(builder.Environment.ContentRootPath, "storage", "payment-proofs");
 Directory.CreateDirectory(paymentProofsPath);
 
 app.UseSwagger();
