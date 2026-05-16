@@ -19,8 +19,7 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var jwtKey = builder.Configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("Falta configurar Jwt:Key en appsettings.");
+        var jwtKey = JwtKeyProvider.GetKey(builder.Configuration);
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
