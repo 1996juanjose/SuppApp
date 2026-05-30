@@ -36,6 +36,9 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
     public Dictionary<int, int> ProductStockLookup { get; private set; } = new();
     public IReadOnlyList<CustomerRecordPayment> Payments { get; private set; } = [];
 
+    [BindProperty(SupportsGet = true)]
+    public string? ReturnUrl { get; set; }
+
     public class InputModel
     {
         public int Id { get; set; }
@@ -177,8 +180,9 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             cambios["Estado"] = $"{record.StatusCatalogId} ? {Input.StatusCatalogId}";
         if (record.RecordDate.Date != Input.RecordDate.Date)
             cambios["Fecha"] = $"{record.RecordDate:yyyy-MM-dd} ? {Input.RecordDate:yyyy-MM-dd}";
-        if (record.Cellphone != Input.Cellphone.Trim())
-            cambios["Celular"] = $"{record.Cellphone} ? {Input.Cellphone.Trim()}";
+        var normalizedCellphone = NormalizeCellphone(Input.Cellphone);
+        if (record.Cellphone != normalizedCellphone)
+            cambios["Celular"] = $"{record.Cellphone} ? {normalizedCellphone}";
         if (record.Dni != (Input.Dni?.Trim() ?? string.Empty))
             cambios["DNI"] = $"{record.Dni} ? {Input.Dni?.Trim()}";
         if (record.NameOrReference != (Input.NameOrReference?.Trim() ?? string.Empty))
@@ -200,7 +204,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
 
         record.StatusCatalogId = Input.StatusCatalogId;
         record.RecordDate = Input.RecordDate;
-        record.Cellphone = Input.Cellphone.Trim();
+        record.Cellphone = normalizedCellphone;
         record.NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty;
         record.CallActivity = Input.CallActivity?.Trim() ?? string.Empty;
         record.Dni = Input.Dni?.Trim() ?? string.Empty;
@@ -231,7 +235,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         }
 
         TempData["StatusMessage"] = "Registro actualizado correctamente.";
-        return RedirectToPage("/Records/Index");
+        return RedirectToReturnUrl();
     }
 
     public async Task<IActionResult> OnPostAddPaymentAsync(int id)
@@ -302,7 +306,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             });
 
         TempData["StatusMessage"] = "Pago agregado correctamente.";
-        return RedirectToPage(new { id });
+        return RedirectToCurrentRecord();
     }
 
     public async Task<IActionResult> OnPostReversePaymentAsync(int id, int paymentId)
@@ -357,7 +361,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             });
 
         TempData["StatusMessage"] = "Pago extornado correctamente.";
-        return RedirectToPage(new { id });
+        return RedirectToCurrentRecord();
     }
 
     private async Task LoadLookupsAsync()
@@ -632,6 +636,42 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
     {
         var status = StatusOptions.FirstOrDefault(x => int.TryParse(x.Value, out var id) && id == statusCatalogId);
         return status?.Text is "Clientes";
+    }
+
+    private static string NormalizeCellphone(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim().Replace(" ", string.Empty);
+        if (normalized.StartsWith("+51"))
+        {
+            normalized = normalized[3..];
+        }
+
+        return normalized;
+    }
+
+    private IActionResult RedirectToReturnUrl()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl))
+        {
+            return Redirect(ReturnUrl);
+        }
+
+        return RedirectToPage("/Records/Index");
+    }
+
+    private IActionResult RedirectToCurrentRecord()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl))
+        {
+            return Redirect(ReturnUrl);
+        }
+
+        return RedirectToPage(new { id = Input.Id });
     }
 
     private sealed record ProductSnapshot(

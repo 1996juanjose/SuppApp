@@ -7,12 +7,14 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">Editar registro</h1>
-    <a asp-page="/Records/Index" class="btn btn-outline-secondary">Volver</a>
+    <a href="@(string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Url.Page("/Records/Index") : Model.ReturnUrl)"
+       class="btn btn-outline-secondary">Volver</a>
 </div>
 
 <form method="post" class="card shadow-sm">
     <input asp-for="Input.Id" type="hidden" />
     <input asp-for="Input.PaidAmount" type="hidden" id="paidAmount" />
+    <input asp-for="ReturnUrl" type="hidden" />
     <div class="card-body">
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -36,7 +38,7 @@
             </div>
             <div class="col-md-3">
                 <label asp-for="Input.Cellphone" class="form-label"></label>
-                <input asp-for="Input.Cellphone" class="form-control" />
+                <input asp-for="Input.Cellphone" class="form-control js-phone-normalize" inputmode="tel" autocomplete="tel" />
                 <span asp-validation-for="Input.Cellphone" class="text-danger"></span>
             </div>
             <div class="col-md-3">
@@ -70,13 +72,13 @@
                 <div class="form-text text-danger d-none" id="stockWarning"></div>
             </div>
             <div class="col-md-3">
-                <label asp-for="Input.FolderPath" class="form-label"></label>
-                <input asp-for="Input.FolderPath" class="form-control" />
+                <label asp-for="Input.FolderPath" class="form-label fw-bold text-primary"></label>
+                <input asp-for="Input.FolderPath" class="form-control border-primary bg-light fw-semibold" />
                 <span asp-validation-for="Input.FolderPath" class="text-danger"></span>
             </div>
             <div class="col-md-4">
-                <label asp-for="Input.Destino" class="form-label"></label>
-                <input asp-for="Input.Destino" class="form-control" list="destinosList" autocomplete="off" placeholder="Buscar o escribir destino..." />
+                <label asp-for="Input.Destino" class="form-label fw-bold text-primary"></label>
+                <input asp-for="Input.Destino" class="form-control border-primary bg-light fw-semibold" list="destinosList" autocomplete="off" placeholder="Buscar o escribir destino..." />
                 <datalist id="destinosList">
                     @foreach (var d in OldSchoolLab.Services.DestinosCatalog.Destinos)
                     {
@@ -86,13 +88,13 @@
                 <span asp-validation-for="Input.Destino" class="text-danger"></span>
             </div>
             <div class="col-md-2">
-                <label asp-for="Input.Clave" class="form-label"></label>
-                <input asp-for="Input.Clave" class="form-control" />
+                <label asp-for="Input.Clave" class="form-label fw-bold text-primary"></label>
+                <input asp-for="Input.Clave" class="form-control border-primary bg-light fw-semibold" />
                 <span asp-validation-for="Input.Clave" class="text-danger"></span>
             </div>
             <div class="col-md-2">
-                <label asp-for="Input.Guia" class="form-label"></label>
-                <input asp-for="Input.Guia" class="form-control" />
+                <label asp-for="Input.Guia" class="form-label fw-bold text-primary"></label>
+                <input asp-for="Input.Guia" class="form-control border-primary bg-light fw-semibold" />
                 <span asp-validation-for="Input.Guia" class="text-danger"></span>
             </div>
         </div>
@@ -137,7 +139,8 @@
         </div>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
-        <a asp-page="/Records/Index" class="btn btn-outline-secondary">Cancelar</a>
+        <a href="@(string.IsNullOrWhiteSpace(Model.ReturnUrl) ? Url.Page("/Records/Index") : Model.ReturnUrl)"
+           class="btn btn-outline-secondary">Cancelar</a>
         <button type="submit" class="btn btn-primary">Guardar cambios</button>
     </div>
 </form>
@@ -149,6 +152,7 @@
                 <strong>Agregar pago</strong>
             </div>
             <div class="card-body">
+                <input asp-for="ReturnUrl" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                 <div class="mb-3">
                     <label asp-for="PaymentInput.Amount" class="form-label"></label>
@@ -236,6 +240,7 @@
                                         @if (!payment.IsReversed)
                                         {
                                             <form method="post" asp-page-handler="ReversePayment" asp-route-id="@Model.Input.Id" asp-route-paymentId="@payment.Id" class="d-inline">
+                                                <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Extornar este pago?');">Extornar</button>
                                             </form>
                                         }
@@ -373,5 +378,21 @@
 
         populateQuantities(initialQuantity);
         updateAmounts();
+    </script>
+
+    <script>
+        document.querySelectorAll('.js-phone-normalize').forEach(input => {
+            input.addEventListener('paste', event => {
+                const text = (event.clipboardData || window.clipboardData).getData('text');
+                if (!text) {
+                    return;
+                }
+
+                const normalized = text.trim().replace(/\s+/g, '').replace(/^\+51/, '');
+                event.preventDefault();
+                input.value = normalized;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
     </script>
 }

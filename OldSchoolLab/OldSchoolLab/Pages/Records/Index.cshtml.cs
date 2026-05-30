@@ -17,7 +17,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public IList<StatusCatalog> Statuses { get; private set; } = new List<StatusCatalog>();
 
     [BindProperty(SupportsGet = true)]
-    public int? StatusId { get; set; }
+    public List<int> StatusIds { get; set; } = new();
 
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
@@ -192,9 +192,9 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
             .AsQueryable();
 
-        if (StatusId.HasValue)
+        if (StatusIds.Count > 0)
         {
-            query = query.Where(x => x.StatusCatalogId == StatusId.Value);
+            query = query.Where(x => StatusIds.Contains(x.StatusCatalogId));
         }
 
         if (!string.IsNullOrWhiteSpace(Search))

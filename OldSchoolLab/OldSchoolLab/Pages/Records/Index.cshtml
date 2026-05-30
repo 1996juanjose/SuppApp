@@ -21,17 +21,38 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Estado</label>
-                <select asp-for="StatusId" class="form-select">
-                    <option value="">Todos</option>
-                    @foreach (var status in Model.Statuses)
-                    {
-                        <option value="@status.Id">@status.Name</option>
-                    }
-                </select>
+                <div class="dropdown w-100">
+                    <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="statusDropdownButton">
+                        @if (Model.StatusIds.Count == 0)
+                        {
+                            <span>Todos</span>
+                        }
+                        else
+                        {
+                            <span>@Model.StatusIds.Count estado(s) seleccionado(s)</span>
+                        }
+                    </button>
+                    <div class="dropdown-menu p-2 w-100" data-bs-auto-close="false" style="max-height: 420px; overflow-y: auto; min-width: 360px;">
+                        @foreach (var status in Model.Statuses)
+                        {
+                            var isChecked = Model.StatusIds.Contains(status.Id);
+                            <label class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 mb-0" style="cursor: pointer;">
+                                <input class="form-check-input js-status-filter m-0" type="checkbox" value="@status.Id" id="status-@status.Id" @(isChecked ? "checked" : null) />
+                                <span>@status.Name</span>
+                            </label>
+                        }
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="clearStatuses">Limpiar</button>
+                    </div>
+                </div>
+                @foreach (var statusId in Model.StatusIds)
+                {
+                    <input type="hidden" name="StatusIds" value="@statusId" class="status-hidden" />
+                }
             </div>
             <div class="col-md-3">
                 <label asp-for="Search" class="form-label">Buscar</label>
-                <input asp-for="Search" class="form-control" placeholder="Celular, nombre, DNI o actividad" />
+                <input asp-for="Search" class="form-control js-phone-search" placeholder="Celular, nombre, DNI o actividad" inputmode="tel" autocomplete="off" />
             </div>
             <div class="col-md-3">
                 <label asp-for="FromDate" class="form-label">Fecha desde</label>
@@ -40,6 +61,9 @@
             <div class="col-md-3">
                 <label asp-for="ToDate" class="form-label">Fecha hasta</label>
                 <input asp-for="ToDate" type="date" class="form-control" />
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btnWholeMonth">Todo el mes</button>
+                </div>
             </div>
         </div>
     </div>
@@ -126,7 +150,10 @@
                     @if (Model.CanEdit)
                     {
                         <td>
-                            <a asp-page="/Records/Edit" asp-route-id="@item.Id" class="btn btn-sm btn-primary">Editar</a>
+                            <a asp-page="/Records/Edit"
+                               asp-route-id="@item.Id"
+                               asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")"
+                               class="btn btn-sm btn-primary">Editar</a>
                         </td>
                     }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
@@ -151,6 +178,30 @@
                     </td>
                     <td>@(item.Payments.Any(x => !x.IsReversed) ? item.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd") : "-")</td>
                     <td class="text-truncate" style="max-width:100px" title="@item.FolderPath">@item.FolderPath</td>
+                    <td>
+                        <div class="logistics-field-cell">
+                            <div class="fw-bold text-uppercase small text-primary">Ruta carpeta</div>
+                            <div class="text-break">@item.FolderPath</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="logistics-field-cell">
+                            <div class="fw-bold text-uppercase small text-primary">Destino</div>
+                            <div class="text-break">@item.Destino</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="logistics-field-cell">
+                            <div class="fw-bold text-uppercase small text-primary">Clave</div>
+                            <div class="text-break">@item.Clave</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="logistics-field-cell">
+                            <div class="fw-bold text-uppercase small text-primary">Guía</div>
+                            <div class="text-break">@item.Guia</div>
+                        </div>
+                    </td>
                     <td>@item.CreatedByUserName</td>
                     @if (Model.CanViewAudit)
                     {
@@ -333,6 +384,84 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
         const modal = new bootstrap.Modal(document.getElementById('paymentImageModal'));
         modal.show();
     });
+</script>
+
+<script>
+    document.querySelectorAll('.js-phone-search').forEach(input => {
+        input.addEventListener('paste', event => {
+            const text = (event.clipboardData || window.clipboardData).getData('text');
+            if (!text) {
+                return;
+            }
+
+            const normalized = text.trim().replace(/\s+/g, '').replace(/^\+51/, '');
+            if (!/^\d+$/.test(normalized)) {
+                return;
+            }
+
+            event.preventDefault();
+            input.value = normalized;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    });
+</script>
+
+<script>
+    const btnWholeMonth = document.getElementById('btnWholeMonth');
+    if (btnWholeMonth) {
+        btnWholeMonth.addEventListener('click', () => {
+            const fromDate = document.getElementById('FromDate');
+            const toDate = document.getElementById('ToDate');
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+            const formatDate = date => date.toISOString().slice(0, 10);
+            fromDate.value = formatDate(firstDay);
+            toDate.value = formatDate(lastDay);
+            document.querySelector('form[method="get"]').submit();
+        });
+    }
+</script>
+
+<script>
+    const statusDropdownButton = document.getElementById('statusDropdownButton');
+    const clearStatuses = document.getElementById('clearStatuses');
+    const filtersForm = document.querySelector('form[method="get"]');
+
+    function syncStatusHiddenInputs() {
+        document.querySelectorAll('.status-hidden').forEach(x => x.remove());
+
+        const selectedIds = Array.from(document.querySelectorAll('.js-status-filter:checked')).map(x => x.value);
+        for (const id of selectedIds) {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'StatusIds';
+            hidden.value = id;
+            hidden.className = 'status-hidden';
+            filtersForm.appendChild(hidden);
+        }
+
+        if (statusDropdownButton) {
+            statusDropdownButton.querySelector('span').textContent = selectedIds.length === 0
+                ? 'Todos'
+                : `${selectedIds.length} estado(s) seleccionado(s)`;
+        }
+    }
+
+    document.querySelectorAll('.js-status-filter').forEach(checkbox => {
+        checkbox.addEventListener('change', syncStatusHiddenInputs);
+        checkbox.addEventListener('click', event => event.stopPropagation());
+    });
+
+    if (clearStatuses) {
+        clearStatuses.addEventListener('click', () => {
+            document.querySelectorAll('.js-status-filter').forEach(checkbox => checkbox.checked = false);
+            syncStatusHiddenInputs();
+        });
+    }
+
+    syncStatusHiddenInputs();
 </script>
 
 @if (Model.CanViewAudit)

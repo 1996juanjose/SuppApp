@@ -34,7 +34,7 @@
             </div>
             <div class="col-md-3">
                 <label asp-for="Input.Cellphone" class="form-label"></label>
-                <input asp-for="Input.Cellphone" class="form-control" />
+                <input asp-for="Input.Cellphone" class="form-control js-phone-normalize" inputmode="tel" autocomplete="tel" />
                 <span asp-validation-for="Input.Cellphone" class="text-danger"></span>
             </div>
             <div class="col-md-3">
@@ -169,6 +169,20 @@
         const balanceDue = document.getElementById('balanceDue');
         const stockWarning = document.getElementById('stockWarning');
         const initialQuantity = quantity.dataset.current;
+
+        document.querySelectorAll('.js-phone-normalize').forEach(input => {
+            input.addEventListener('paste', event => {
+                const text = (event.clipboardData || window.clipboardData).getData('text');
+                if (!text) {
+                    return;
+                }
+
+                const normalized = text.trim().replace(/\s+/g, '').replace(/^\+51/, '');
+                event.preventDefault();
+                input.value = normalized;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            });
+        });
 
         function formatCurrency(value) {
             return `S/ ${Number(value || 0).toFixed(2)}`;

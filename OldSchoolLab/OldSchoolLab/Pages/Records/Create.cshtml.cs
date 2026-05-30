@@ -151,7 +151,7 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             StatusCatalogId = Input.StatusCatalogId,
             RecordDate = Input.RecordDate,
             CreatedAt = DateTime.Now,
-            Cellphone = Input.Cellphone.Trim(),
+            Cellphone = NormalizeCellphone(Input.Cellphone),
             NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty,
             CallActivity = Input.CallActivity?.Trim() ?? string.Empty,
             Dni = Input.Dni?.Trim() ?? string.Empty,
@@ -322,6 +322,22 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
     {
         var status = StatusOptions.FirstOrDefault(x => int.TryParse(x.Value, out var id) && id == statusCatalogId);
         return status?.Text is "Cliente" or "Clientes";
+    }
+
+    private static string NormalizeCellphone(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim().Replace(" ", string.Empty);
+        if (normalized.StartsWith("+51"))
+        {
+            normalized = normalized[3..];
+        }
+
+        return normalized;
     }
 
     private sealed record ProductSnapshot(
