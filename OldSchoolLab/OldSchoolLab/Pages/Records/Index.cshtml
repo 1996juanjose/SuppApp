@@ -38,7 +38,7 @@
                             var isChecked = Model.StatusIds.Contains(status.Id);
                             <label class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 mb-0" style="cursor: pointer;">
                                 <input class="form-check-input js-status-filter m-0" type="checkbox" value="@status.Id" id="status-@status.Id" @(isChecked ? "checked" : null) />
-                                <span>@status.Name</span>
+                                <span class="badge text-bg-@status.BadgeClass">@status.Name</span>
                             </label>
                         }
                         <div class="dropdown-divider"></div>
