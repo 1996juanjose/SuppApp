@@ -141,12 +141,20 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         record.PaidAmount += montoDetectado;
         record.BalanceDue = Math.Max(0m, record.ProductAmount - record.PaidAmount);
 
-        var statusToApply = record.ProductAmount > 0m && record.PaidAmount >= record.ProductAmount
+        var paymentFullyCovered = record.ProductAmount > 0m && record.PaidAmount >= record.ProductAmount;
+        var statusToApply = paymentFullyCovered
             ? clienteStatus
             : porPagarStatus;
 
         if (statusToApply is not null)
+        {
             record.StatusCatalogId = statusToApply.Id;
+
+            if (paymentFullyCovered)
+            {
+                record.CallActivity = "Conforme recibio pedido";
+            }
+        }
 
         await db.SaveChangesAsync();
 
