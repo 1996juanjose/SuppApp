@@ -53,6 +53,11 @@
                 <span asp-validation-for="Input.CallActivity" class="text-danger"></span>
             </div>
             <div class="col-md-4">
+                <label asp-for="Input.CallScheduledAt" class="form-label"></label>
+                <input asp-for="Input.CallScheduledAt" class="form-control" type="datetime-local" />
+                <span asp-validation-for="Input.CallScheduledAt" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
                 <label asp-for="Input.ProductId" class="form-label"></label>
                 <select asp-for="Input.ProductId" asp-items="Model.ProductOptions" class="form-select" id="productId">
                     <option value="">Sin producto</option>

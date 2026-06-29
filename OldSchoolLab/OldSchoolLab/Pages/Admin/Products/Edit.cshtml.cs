@@ -10,7 +10,7 @@ using System.Security.Claims;
 
 namespace OldSchoolLab.Pages.Admin.Products;
 
-[Authorize(Roles = "Gerencia")]
+[Authorize(Roles = "Gerencia,SuperAdmin")]
 public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 {
     [BindProperty]
@@ -70,7 +70,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
     public async Task<IActionResult> OnGetAsync(int? id)
     {
         var companyId = User.GetCompanyId();
-        if (!companyId.HasValue)
+        var isGlobalAdmin = User.IsInRole("SuperAdmin") || User.IsGlobalAdmin();
+        if (!companyId.HasValue && !isGlobalAdmin)
         {
             return Forbid();
         }
@@ -85,7 +86,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
             .AsNoTracking()
             .Include(x => x.Prices.OrderBy(p => p.Quantity))
             .Include(x => x.CommissionTiers.OrderBy(p => p.Quantity))
-            .FirstOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId.Value);
+            .FirstOrDefaultAsync(x => x.Id == id && (!companyId.HasValue || x.CompanyId == companyId.Value));
 
         if (product is null) return NotFound();
 
@@ -115,7 +116,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         var companyId = User.GetCompanyId();
-        if (!companyId.HasValue)
+        var isGlobalAdmin = User.IsInRole("SuperAdmin") || User.IsGlobalAdmin();
+        if (!companyId.HasValue && !isGlobalAdmin)
         {
             return Forbid();
         }
@@ -124,6 +126,11 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
 
         if (Input.Id == 0)
         {
+            if (!companyId.HasValue)
+            {
+                return Forbid();
+            }
+
             var product = new Product
             {
                 CompanyId = companyId.Value,
@@ -149,7 +156,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit) : PageModel
             var product = await db.Products
                 .Include(x => x.Prices)
                 .Include(x => x.CommissionTiers)
-                .FirstOrDefaultAsync(x => x.Id == Input.Id && x.CompanyId == companyId.Value);
+                .FirstOrDefaultAsync(x => x.Id == Input.Id && (!companyId.HasValue || x.CompanyId == companyId.Value));
 
             if (product is null) return NotFound();
 

@@ -46,3 +46,7 @@ button.accept-policy {
   white-space: nowrap;
   line-height: 60px;
 }
+
+#callReminderList .list-group-item {
+  border-color: rgba(0, 0, 0, 0.08);
+}

@@ -1,0 +1,38 @@
+<div class="layout-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">OS</div>
+      <div>
+        <strong>OldSchoolLab</strong>
+        <div class="muted">Angular 19 shell</div>
+      </div>
+    </div>
+
+    <nav class="menu">
+      @for (item of menuItems(); track item.route) {
+        <a class="menu-item" [routerLink]="item.route" routerLinkActive="active">{{ item.label }}</a>
+      }
+    </nav>
+  </aside>
+
+  <section class="content">
+    <header class="topbar">
+      <div>
+        <h1>Panel administrativo</h1>
+        <p class="muted">Acceso por roles y JWT con AuthService.</p>
+      </div>
+
+      <div class="session-box" *ngIf="currentUser() as user">
+        <div>
+          <strong>{{ user.username }}</strong>
+          <div class="muted">{{ user.companyName || 'Sin empresa' }}</div>
+        </div>
+        <button type="button" class="logout-btn" (click)="logout()">Salir</button>
+      </div>
+    </header>
+
+    <main class="page">
+      <router-outlet />
+    </main>
+  </section>
+</div>

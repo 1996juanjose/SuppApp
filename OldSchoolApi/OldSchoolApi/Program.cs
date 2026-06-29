@@ -11,6 +11,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AngularDev", policy =>
+        policy.WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
 
 builder.Services.AddDbContext<ApiDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -80,6 +87,12 @@ var paymentProofsPath = !string.IsNullOrWhiteSpace(configuredPaymentProofsPath) 
     : Path.Combine(builder.Environment.ContentRootPath, "storage", "payment-proofs");
 Directory.CreateDirectory(paymentProofsPath);
 
+var configuredShipmentProofsPath = builder.Configuration["Storage:ShipmentProofsPath"]?.Trim();
+var shipmentProofsPath = !string.IsNullOrWhiteSpace(configuredShipmentProofsPath) && Path.IsPathRooted(configuredShipmentProofsPath)
+    ? configuredShipmentProofsPath
+    : Path.Combine(builder.Environment.ContentRootPath, "storage", "shipment-proofs");
+Directory.CreateDirectory(shipmentProofsPath);
+
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "OldSchoolApi v1"));
 
@@ -89,11 +102,14 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/payment-proofs"
 });
 
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(shipmentProofsPath),
+    RequestPath = "/shipment-proofs"
+});
 
 app.UseHttpsRedirection();
+app.UseCors("AngularDev");
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -123,5 +139,43 @@ app.MapGet("/time", (IConfiguration config) =>
 });
 
 app.MapControllers();
+
+app.MapGet("/api/records/calls/summary", async (ApiDbContext db, int? companyId, CancellationToken cancellationToken) =>
+{
+    var now = DateTime.Now;
+    var summary = await db.CustomerRecords
+        .AsNoTracking()
+        .Where(x => !x.IsCallConcrete)
+        .Where(x => x.CallScheduledAt.HasValue)
+        .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+        .Select(x => new
+        {
+            x.Id,
+            x.CompanyId,
+            x.Cellphone,
+            x.NameOrReference,
+            x.CallActivity,
+            x.CallScheduledAt,
+            x.StatusCatalogId
+        })
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(new
+    {
+        now,
+        upcoming = summary.Where(x => x.CallScheduledAt > now && x.CallScheduledAt <= now.AddMinutes(5)).OrderBy(x => x.CallScheduledAt),
+        due = summary.Where(x => x.CallScheduledAt <= now).OrderBy(x => x.CallScheduledAt)
+    });
+});
+
+app.MapGet("/api/bootstrap", (IConfiguration config) => Results.Ok(new
+{
+    auth = new
+    {
+        issuer = config["Jwt:Issuer"],
+        audience = config["Jwt:Audience"]
+    },
+    modules = new[] { "records", "products", "audit", "alerts" }
+}));
 
 app.Run();

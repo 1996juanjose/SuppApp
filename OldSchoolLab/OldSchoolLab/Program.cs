@@ -4,6 +4,7 @@ using Microsoft.Extensions.FileProviders;
 using OldSchoolLab.Data;
 using OldSchoolLab.Models;
 using OldSchoolLab.Services;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
@@ -17,7 +18,9 @@ builder.Services.Configure<RouteOptions>(options =>
     options.LowercaseUrls = true;
 });
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -43,7 +46,17 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IPaymentProofStorage, PaymentProofStorage>();
 builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
+builder.Services.AddScoped<ChatApiClient>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSession();
+
+builder.Services.Configure<ApiEndpointsOptions>(builder.Configuration.GetSection(ApiEndpointsOptions.SectionName));
+builder.Services.AddHttpClient(ChatApiClient.HttpClientName, (serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<ApiEndpointsOptions>>().Value;
+    client.BaseAddress = new Uri(options.GatewayBaseUrl.TrimEnd('/') + "/");
+    client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+});
 
 builder.Services.AddSingleton<HtmlEncoder>(
     HtmlEncoder.Create(UnicodeRanges.All));
@@ -107,6 +120,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/company-logos"
 });
 app.UseRouting();
+app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 

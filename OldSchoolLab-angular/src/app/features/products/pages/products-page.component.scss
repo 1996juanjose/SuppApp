@@ -1,0 +1,133 @@
+:host {
+  display: block;
+}
+
+.products-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.products-header {
+  background: linear-gradient(135deg, #ecfeff, #ffffff);
+  border-radius: 1.25rem;
+  padding: 1.4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.eyebrow {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: #cffafe;
+  color: #0e7490;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 0.5rem 0 0;
+}
+
+p,
+.muted {
+  color: #64748b;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.stat-card {
+  padding: 1rem 1.05rem;
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.stat-card span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.stat-card strong {
+  font-size: 1.25rem;
+}
+
+.panel-card {
+  border-radius: 1.25rem;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.alert-box {
+  border-radius: 0.95rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.alert-box.error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.table-container {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+}
+
+.product-name {
+  display: grid;
+  gap: 0.15rem;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th {
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+td {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.price-summary {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.price-detail {
+  color: #64748b;
+  font-size: 0.88rem;
+  margin-top: 0.2rem;
+}
+
+.refresh-button {
+  justify-self: end;
+}
+
+.active-chip {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.inactive-chip {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+@media (max-width: 960px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}

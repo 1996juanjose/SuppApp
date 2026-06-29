@@ -1,0 +1,154 @@
+@page
+@model OldSchoolLab.Pages.Records.PrintDayModel
+@{
+    ViewData["Title"] = "Documento del día";
+    Layout = null;
+}
+
+<style>
+    @@media print {
+        .no-print { display: none !important; }
+        .print-page { break-after: page; page-break-after: always; }
+        .print-card { break-inside: avoid; page-break-inside: avoid; }
+        body { background: white !important; margin: 0 !important; }
+    }
+
+    .print-sheet {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 4mm;
+    }
+
+    .print-page {
+        min-height: 140mm;
+        display: grid;
+        grid-template-rows: 1fr 1fr;
+        gap: 4mm;
+        padding: 0;
+        margin: 0 0 3mm 0;
+    }
+
+    .print-card {
+        width: 100%;
+        min-height: 70mm;
+        border: 1.5px solid #111;
+        border-radius: 8px;
+        padding: 10mm 12mm;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background: #fff;
+    }
+
+    .print-title {
+        font-size: 1.35rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        margin-bottom: 6mm;
+    }
+
+    .print-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 4mm;
+        align-items: baseline;
+    }
+
+    .print-label {
+        width: 48mm;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: .84rem;
+    }
+
+    .print-value {
+        flex: 1;
+        border-bottom: 1px dotted #999;
+        min-height: 7mm;
+        padding-bottom: 1mm;
+        font-size: 1.02rem;
+    }
+
+    .print-footer {
+        margin-top: 6mm;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: .86rem;
+        color: #444;
+    }
+
+    .sheet-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5mm;
+    }
+
+    @@page {
+        size: A4 portrait;
+        margin: 3mm;
+    }
+</style>
+
+<div class="no-print d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="h3 mb-0">Documento del día</h1>
+        <p class="text-muted mb-0">Fichas listas para imprimir en media hoja A4.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" asp-page-handler="Back" class="d-inline">
+            <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+            <button type="submit" class="btn btn-outline-secondary">Volver</button>
+        </form>
+        <button type="button" class="btn btn-primary" onclick="window.print()">Imprimir</button>
+    </div>
+</div>
+
+<div class="print-sheet">
+    @for (var i = 0; i < Model.Records.Count; i += 2)
+    {
+        <section class="print-page">
+            @for (var j = i; j < i + 2 && j < Model.Records.Count; j++)
+            {
+                var record = Model.Records[j];
+                <section class="print-card">
+                    <div>
+                        <div class="sheet-header">
+                            <div class="print-title">Ficha de registro</div>
+                            <div class="small text-muted">@Model.PrintedAt.ToString("yyyy-MM-dd HH:mm")</div>
+                        </div>
+
+                        <div class="print-row">
+                            <div class="print-label">Nombre completo</div>
+                            <div class="print-value">@record.NameOrReference</div>
+                        </div>
+                        <div class="print-row">
+                            <div class="print-label">DNI</div>
+                            <div class="print-value">@record.Dni</div>
+                        </div>
+                        <div class="print-row">
+                            <div class="print-label">Celular</div>
+                            <div class="print-value">@record.Cellphone</div>
+                        </div>
+                        <div class="print-row">
+                            <div class="print-label">Destino registrado</div>
+                            <div class="print-value">@record.Destino</div>
+                        </div>
+                        <div class="print-row">
+                            <div class="print-label">Cantidad producto</div>
+                            <div class="print-value">@record.Quantity</div>
+                        </div>
+                    </div>
+
+                    <div class="print-footer">
+                        <span>Producto: @record.Product?.Name</span>
+                        <span>Registro #@record.Id</span>
+                    </div>
+                </section>
+            }
+        </section>
+    }
+</div>

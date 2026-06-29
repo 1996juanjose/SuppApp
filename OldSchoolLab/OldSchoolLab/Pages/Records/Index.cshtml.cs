@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,13 @@ public class IndexModel(ApplicationDbContext db) : PageModel
 {
     public IList<CustomerRecord> Records { get; private set; } = new List<CustomerRecord>();
     public IList<StatusCatalog> Statuses { get; private set; } = new List<StatusCatalog>();
+    public IList<CallReminderViewModel> DueCallReminders { get; private set; } = new List<CallReminderViewModel>();
+    public IList<CallReminderViewModel> UpcomingCallReminders { get; private set; } = new List<CallReminderViewModel>();
+    public IList<CollectionAlertViewModel> CollectionAlerts { get; private set; } = new List<CollectionAlertViewModel>();
+    public IList<CollectionAlertViewModel> ReversalAlerts { get; private set; } = new List<CollectionAlertViewModel>();
+    public IList<CollectionAlertViewModel> EarlyCollectionAlerts { get; private set; } = new List<CollectionAlertViewModel>();
+    public DateTime? NextCallScheduledAt { get; private set; }
+    public int PrintDayCount { get; private set; }
 
     [BindProperty(SupportsGet = true)]
     public List<int> StatusIds { get; set; } = new();
@@ -39,8 +47,124 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public async Task OnGetAsync()
     {
         await LoadStatusesAsync();
+        var printDaySessionKey = $"records-print-day:{User.GetCompanyId()?.ToString() ?? "global"}:{DateTime.Today:yyyyMMdd}";
+        var printDayRaw = HttpContext.Session.GetString(printDaySessionKey);
+        PrintDayCount = string.IsNullOrWhiteSpace(printDayRaw)
+            ? 0
+            : printDayRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var id) ? id : 0).Count(x => x > 0);
         var today = DateTime.Today;
+        var companyId = User.GetCompanyId();
         var query = BuildFilteredRecordsQuery();
+        var now = DateTime.Now;
+
+        NextCallScheduledAt = await db.CustomerRecords
+            .AsNoTracking()
+            .Where(x => !x.IsCallConcrete)
+            .Where(x => x.CallScheduledAt.HasValue)
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => x.CallScheduledAt > now)
+            .OrderBy(x => x.CallScheduledAt)
+            .Select(x => x.CallScheduledAt)
+            .FirstOrDefaultAsync();
+
+        DueCallReminders = await db.CustomerRecords
+            .AsNoTracking()
+            .Include(x => x.StatusCatalog)
+            .Where(x => !x.IsCallConcrete)
+            .Where(x => x.CallScheduledAt.HasValue)
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => x.CallScheduledAt >= now.AddDays(-21) && x.CallScheduledAt <= now)
+            .OrderBy(x => x.CallScheduledAt)
+            .ThenBy(x => x.Id)
+            .Select(x => new CallReminderViewModel
+            {
+                Id = x.Id,
+                Cellphone = x.Cellphone,
+                NameOrReference = x.NameOrReference,
+                CallActivity = x.CallActivity,
+                CallScheduledAt = x.CallScheduledAt,
+                Status = x.StatusCatalog.Name
+            })
+            .Take(10)
+            .ToListAsync();
+
+        UpcomingCallReminders = await db.CustomerRecords
+            .AsNoTracking()
+            .Include(x => x.StatusCatalog)
+            .Where(x => !x.IsCallConcrete)
+            .Where(x => x.CallScheduledAt.HasValue)
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => x.CallScheduledAt > now && x.CallScheduledAt <= now.AddMinutes(5))
+            .OrderBy(x => x.CallScheduledAt)
+            .ThenBy(x => x.Id)
+            .Select(x => new CallReminderViewModel
+            {
+                Id = x.Id,
+                Cellphone = x.Cellphone,
+                NameOrReference = x.NameOrReference,
+                CallActivity = x.CallActivity,
+                CallScheduledAt = x.CallScheduledAt,
+                Status = x.StatusCatalog.Name
+            })
+            .Take(10)
+            .ToListAsync();
+
+        var collectionBaseQuery = db.CustomerRecords
+            .AsNoTracking()
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => x.PaidAmount > 0m)
+            .Where(x => x.BalanceDue > 0m)
+            .Where(x => x.StatusCatalog.Name == "Por Pagar" || x.StatusCatalog.Name == "Cliente" || x.StatusCatalog.Name == "Clientes");
+
+        var collectionRecords = await collectionBaseQuery
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new
+            {
+                x.Id,
+                x.Cellphone,
+                x.NameOrReference,
+                Status = x.StatusCatalog.Name,
+                x.BalanceDue,
+                LastPaymentAt = x.Payments.Where(p => !p.IsReversed).OrderByDescending(p => p.PaymentDate).ThenByDescending(p => p.CreatedAt).Select(p => (DateTime?)p.PaymentDate).FirstOrDefault()
+            })
+            .ToListAsync();
+
+        foreach (var record in collectionRecords)
+        {
+            var daysSinceLastPayment = record.LastPaymentAt.HasValue
+                ? (int)(today - record.LastPaymentAt.Value.Date).TotalDays
+                : int.MaxValue;
+
+            if (daysSinceLastPayment >= 7 && (record.Status is "Por Pagar" || record.Status is not "Cliente" and not "Clientes"))
+            {
+                CollectionAlerts = CollectionAlerts.Append(new CollectionAlertViewModel
+                {
+                    Id = record.Id,
+                    Cellphone = record.Cellphone,
+                    NameOrReference = record.NameOrReference,
+                    Status = record.Status,
+                    BalanceDue = record.BalanceDue,
+                    LastPaymentAt = record.LastPaymentAt,
+                    DaysSinceLastPayment = daysSinceLastPayment,
+                    AlertType = "Cobranza fuerte / extorno"
+                }).ToList();
+            }
+            else if (record.Status is "Por Pagar" && daysSinceLastPayment >= 3)
+            {
+                EarlyCollectionAlerts = EarlyCollectionAlerts.Append(new CollectionAlertViewModel
+                {
+                    Id = record.Id,
+                    Cellphone = record.Cellphone,
+                    NameOrReference = record.NameOrReference,
+                    Status = record.Status,
+                    BalanceDue = record.BalanceDue,
+                    LastPaymentAt = record.LastPaymentAt,
+                    DaysSinceLastPayment = daysSinceLastPayment,
+                    AlertType = "Empezar a cobrar lo restante"
+                }).ToList();
+            }
+        }
 
         if (!FromDate.HasValue && !ToDate.HasValue)
         {
@@ -75,6 +199,54 @@ public class IndexModel(ApplicationDbContext db) : PageModel
         await db.SaveChangesAsync();
 
         TempData["StatusMessage"] = $"Registro de {record.Cellphone} eliminado correctamente.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostAddToPrintDayAsync(int id, string? returnUrl)
+    {
+        if (!CanEdit && !User.IsInRole("SuperAdmin"))
+            return Forbid();
+
+        var companyId = User.GetCompanyId();
+        var record = await db.CustomerRecords
+            .AsNoTracking()
+            .Include(x => x.Product)
+            .FirstOrDefaultAsync(x => x.Id == id && (!companyId.HasValue || x.CompanyId == companyId.Value));
+
+        if (record is null)
+            return NotFound();
+
+        var printDaySessionKey = $"records-print-day:{User.GetCompanyId()?.ToString() ?? "global"}:{DateTime.Today:yyyyMMdd}";
+        var raw = HttpContext.Session.GetString(printDaySessionKey);
+        var ids = string.IsNullOrWhiteSpace(raw)
+            ? new List<int>()
+            : raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => int.TryParse(x, out var value) ? value : 0)
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList();
+
+        if (!ids.Contains(record.Id))
+        {
+            ids.Add(record.Id);
+            HttpContext.Session.SetString(printDaySessionKey, string.Join(',', ids.Distinct()));
+        }
+
+        TempData["StatusMessage"] = "Ficha agregada al documento del día.";
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            return Redirect(returnUrl);
+
+        return RedirectToPage();
+    }
+
+    public IActionResult OnPostClearPrintDay(string? returnUrl)
+    {
+        var printDaySessionKey = $"records-print-day:{User.GetCompanyId()?.ToString() ?? "global"}:{DateTime.Today:yyyyMMdd}";
+        HttpContext.Session.Remove(printDaySessionKey);
+        TempData["StatusMessage"] = "Documento del día eliminado.";
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            return Redirect(returnUrl);
+
         return RedirectToPage();
     }
 
@@ -264,6 +436,44 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             var v = (f ?? string.Empty).Replace("\"", "\"\"");
             return v.IndexOfAny(new[] { ',', '"', '\n', '\r' }) >= 0 ? $"\"{ v}\"" : v;
         }));
+    }
+
+    private string PrintDaySessionKey => $"records-print-day:{User.GetCompanyId()?.ToString() ?? "global"}:{DateTime.Today:yyyyMMdd}";
+
+    private List<int> GetPrintDayRecordIds()
+    {
+        var raw = HttpContext.Session.GetString(PrintDaySessionKey);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new List<int>();
+        }
+
+        return raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => int.TryParse(x, out var id) ? id : 0)
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList();
+    }
+
+    private void SavePrintDayRecordIds(List<int> ids)
+    {
+        HttpContext.Session.SetString(PrintDaySessionKey, string.Join(',', ids.Distinct()));
+    }
+
+    private void ClearPrintDayRecordIds()
+    {
+        HttpContext.Session.Remove(PrintDaySessionKey);
+    }
+
+    private IActionResult RedirectBack()
+    {
+        var referer = Request.Headers.Referer.ToString();
+        if (!string.IsNullOrWhiteSpace(referer) && Url.IsLocalUrl(referer))
+        {
+            return Redirect(referer);
+        }
+
+        return RedirectToPage();
     }
 }
 

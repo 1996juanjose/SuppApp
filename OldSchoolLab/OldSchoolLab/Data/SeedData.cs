@@ -97,6 +97,16 @@ public static class SeedData
             """);
 
         await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecords"
+            ADD COLUMN IF NOT EXISTS "CallScheduledAt" timestamp without time zone NULL;
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE IF EXISTS "CustomerRecords"
+            ADD COLUMN IF NOT EXISTS "IsCallConcrete" boolean NOT NULL DEFAULT FALSE;
+            """);
+
+        await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE IF EXISTS "AuditLogs"
             ALTER COLUMN "ChangedAt" TYPE timestamp without time zone
             USING "ChangedAt"::timestamp without time zone;

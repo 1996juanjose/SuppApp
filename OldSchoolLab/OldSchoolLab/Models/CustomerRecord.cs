@@ -29,6 +29,10 @@ public class CustomerRecord
     [MaxLength(300)]
     public string CallActivity { get; set; } = string.Empty;
 
+    public DateTime? CallScheduledAt { get; set; }
+
+    public bool IsCallConcrete { get; set; }
+
     [MaxLength(20)]
     public string Dni { get; set; } = string.Empty;
 

@@ -1,0 +1,44 @@
+<section class="login-shell">
+  <div class="login-card">
+    <div class="header">
+      <div class="badge">OS</div>
+      <div>
+        <h1>Iniciar sesión</h1>
+        <p>Acceso al panel angular con AuthService.</p>
+      </div>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid">
+      <label>
+        <span>Empresa</span>
+        <select formControlName="companyId" [disabled]="loadingCompanies || companies.length === 0">
+          @for (company of companies; track company.id) {
+            <option [ngValue]="company.id">{{ company.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>Usuario</span>
+        <input type="text" formControlName="username" placeholder="ADMIN" />
+      </label>
+
+      <label>
+        <span>Contraseña</span>
+        <input type="password" formControlName="password" placeholder="ADMIN" />
+      </label>
+
+      @if (errorMessage) {
+        <div class="error-box">{{ errorMessage }}</div>
+      }
+
+      <button type="submit" [disabled]="loading">
+        {{ loading ? 'Ingresando...' : 'Entrar' }}
+      </button>
+
+      <p class="footer-note">
+        El token se obtiene desde AuthService y luego se usará para las demás APIs.
+      </p>
+    </form>
+  </div>
+</section>

@@ -17,6 +17,23 @@ public class AuthController(ApiDbContext db, IConfiguration config) : Controller
     {
         public string UserName { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public int? CompanyId { get; set; }
+    }
+
+    public class CompanyLookupDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+
+    [HttpGet("companies")]
+    public async Task<IActionResult> GetCompanies()
+    {
+        var companies = await db.Set<CompanyLookupDto>()
+            .FromSqlRaw("select \"Id\", \"Name\" from \"Companies\" where coalesce(\"IsActive\", true) = true order by \"Name\"")
+            .ToListAsync();
+
+        return Ok(companies);
     }
 
     /// <summary>
@@ -50,6 +67,12 @@ public class AuthController(ApiDbContext db, IConfiguration config) : Controller
             select r.Name
         ).ToListAsync();
 
+        var selectedCompany = request.CompanyId.HasValue
+            ? await db.Set<CompanyLookupDto>()
+                .FromSqlRaw("select \"Id\", \"Name\" from \"Companies\" where \"Id\" = {0} and coalesce(\"IsActive\", true) = true", request.CompanyId.Value)
+                .FirstOrDefaultAsync()
+            : null;
+
         var token = GenerateJwt(user.Id, user.UserName ?? string.Empty, roles);
 
         return Ok(new
@@ -57,6 +80,8 @@ public class AuthController(ApiDbContext db, IConfiguration config) : Controller
             token,
             userName = user.UserName,
             roles,
+            companyId = selectedCompany?.Id,
+            companyName = selectedCompany?.Name,
             expiresIn = $"{config["Jwt:ExpiresInHours"]}h"
         });
     }

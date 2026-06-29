@@ -9,7 +9,10 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
     public DbSet<CustomerRecordPayment> CustomerRecordPayments => Set<CustomerRecordPayment>();
     public DbSet<StatusCatalog> Statuses => Set<StatusCatalog>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductCommissionTier> ProductCommissionTiers => Set<ProductCommissionTier>();
+    public DbSet<ProductStockMovement> ProductStockMovements => Set<ProductStockMovement>();
     public DbSet<ProductPrice> ProductPrices => Set<ProductPrice>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<AppRole> Roles => Set<AppRole>();
     public DbSet<AppUserRole> UserRoles => Set<AppUserRole>();
@@ -21,6 +24,7 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
         builder.Entity<AppUser>().ToTable("AspNetUsers");
         builder.Entity<AppRole>().ToTable("AspNetRoles");
         builder.Entity<AppUserRole>().ToTable("AspNetUserRoles").HasKey(x => new { x.UserId, x.RoleId });
+        builder.Entity<CustomerRecord>().HasOne(x => x.StatusCatalog).WithMany(x => x.CustomerRecords).HasForeignKey(x => x.StatusCatalogId);
 
         builder.Entity<CustomerRecord>()
             .Property(x => x.ProductAmount).HasPrecision(10, 2);
@@ -42,5 +46,25 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
             .Property(x => x.ReversedAt).HasColumnType("timestamp without time zone");
         builder.Entity<ProductPrice>()
             .Property(x => x.Price).HasPrecision(10, 2);
+
+        builder.Entity<CustomerRecord>().ToTable("CustomerRecords");
+        builder.Entity<Product>().ToTable("Products");
+        builder.Entity<ProductPrice>().ToTable("ProductPrices");
+        builder.Entity<CustomerRecordPayment>().ToTable("CustomerRecordPayments");
+        builder.Entity<StatusCatalog>().ToTable("Statuses");
+        builder.Entity<AuditLog>().ToTable("AuditLogs");
+
+        builder.Entity<CustomerRecord>().Property(x => x.ProductAmount).HasPrecision(10, 2);
+        builder.Entity<CustomerRecord>().Property(x => x.PaidAmount).HasPrecision(10, 2);
+        builder.Entity<CustomerRecord>().Property(x => x.BalanceDue).HasPrecision(10, 2);
+        builder.Entity<CustomerRecord>().Property(x => x.RecordDate).HasColumnType("date");
+        builder.Entity<CustomerRecord>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<CustomerRecord>().Property(x => x.CallScheduledAt).HasColumnType("timestamp without time zone");
+        builder.Entity<CustomerRecordPayment>().Property(x => x.Amount).HasPrecision(10, 2);
+        builder.Entity<CustomerRecordPayment>().Property(x => x.PaymentDate).HasColumnType("date");
+        builder.Entity<CustomerRecordPayment>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<CustomerRecordPayment>().Property(x => x.ReversedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<Product>().Property(x => x.PurchaseUnitCost).HasPrecision(10, 2);
+        builder.Entity<ProductPrice>().Property(x => x.Price).HasPrecision(10, 2);
     }
 }

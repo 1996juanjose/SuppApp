@@ -1,0 +1,149 @@
+<section class="record-edit-shell">
+  <header class="edit-header mat-elevation-z2">
+    <div>
+      <span class="eyebrow">Registros</span>
+      <h1>Editar registro</h1>
+      <p class="muted">Edición equivalente al formulario del MVC.</p>
+    </div>
+
+    <div class="header-actions">
+      <button mat-stroked-button type="button" (click)="back()">Volver</button>
+      <button mat-raised-button color="primary" type="button" (click)="save()" [disabled]="saving()">Guardar cambios</button>
+    </div>
+  </header>
+
+  <mat-card class="panel-card">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    }
+
+    @if (errorMessage()) {
+      <div class="alert-box error">{{ errorMessage() }}</div>
+    }
+
+    <form class="edit-grid" [formGroup]="form">
+      <mat-form-field appearance="outline">
+        <mat-label>Estado</mat-label>
+        <mat-select formControlName="statusCatalogId">
+          @for (status of statusOptions(); track status.id) {
+            <mat-option [value]="status.id">{{ status.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha</mat-label>
+        <input matInput type="date" formControlName="recordDate" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Celular</mat-label>
+        <input matInput formControlName="cellphone" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>DNI</mat-label>
+        <input matInput formControlName="dni" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="span-2">
+        <mat-label>Nombre / Ref WA</mat-label>
+        <input matInput formControlName="nameOrReference" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="span-2">
+        <mat-label>Actividad de la llamada</mat-label>
+        <input matInput formControlName="callActivity" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha y hora de llamada</mat-label>
+        <input matInput type="datetime-local" formControlName="callScheduledAt" />
+      </mat-form-field>
+
+      <div class="checkbox-cell">
+        <mat-checkbox formControlName="isCallConcrete">Llamada concretada</mat-checkbox>
+      </div>
+
+
+      <mat-form-field appearance="outline">
+        <mat-label>Producto</mat-label>
+        <mat-select formControlName="productCatalogId">
+          @for (product of productOptions(); track product.id) {
+            <mat-option [value]="product.id">{{ product.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+
+      
+     <mat-form-field appearance="outline">
+
+      <mat-label>Precio</mat-label>
+
+      <mat-select formControlName="selectedPriceId">
+
+        @for(
+          price of selectedProduct()?.prices ?? [];
+          track price.id
+        ){
+
+          <mat-option [value]="price.id">
+
+            {{ price.quantity }}
+            unidad(es)
+            - S/ {{ price.price }}
+
+          </mat-option>
+
+        }
+
+      </mat-select>
+
+  </mat-form-field>
+
+        <input
+      matInput
+      type="number"
+      formControlName="quantity"
+      readonly
+      />
+
+      @if(selectedPrice()){
+
+      <div class="price-label">
+
+      Total seleccionado:
+
+      <strong>
+
+      S/ {{ selectedAmount() }}
+
+      </strong>
+
+      </div>
+
+      }
+
+      <mat-form-field appearance="outline">
+        <mat-label>Ruta carpeta</mat-label>
+        <input matInput formControlName="folderPath" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Destino</mat-label>
+        <input matInput formControlName="destino" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Clave</mat-label>
+        <input matInput formControlName="clave" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Guía</mat-label>
+        <input matInput formControlName="guia" />
+      </mat-form-field>
+    </form>
+  </mat-card>
+</section>

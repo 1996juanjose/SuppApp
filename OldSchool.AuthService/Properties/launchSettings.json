@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "OldSchool.AuthService": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:64491;http://localhost:64492",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

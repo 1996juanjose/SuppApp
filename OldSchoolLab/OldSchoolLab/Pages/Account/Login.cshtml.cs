@@ -9,11 +9,12 @@ using OldSchoolLab.Models;
 using OldSchoolLab.Services;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 
 namespace OldSchoolLab.Pages.Account;
 
 [AllowAnonymous]
-public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, ApplicationDbContext db) : PageModel
+public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager, ApplicationDbContext db, ChatApiClient chatApiClient, IHttpContextAccessor httpContextAccessor) : PageModel
 {
     private const string GlobalAdminValue = "__global__";
 
@@ -112,6 +113,19 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
         var result = await signInManager.CheckPasswordSignInAsync(user, Input.Password, lockoutOnFailure: false);
         if (result.Succeeded)
         {
+            try
+            {
+                var token = await chatApiClient.LoginAsync(Input.UserName.Trim(), Input.Password);
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    httpContextAccessor.HttpContext?.Session.SetString("ChatApiJwt", token);
+                }
+            }
+            catch
+            {
+                httpContextAccessor.HttpContext?.Session.Remove("ChatApiJwt");
+            }
+
             await signInManager.SignOutAsync();
             await signInManager.SignInWithClaimsAsync(user, Input.RememberMe, additionalClaims);
             return LocalRedirect(returnUrl ?? Url.Page("/Index")!);

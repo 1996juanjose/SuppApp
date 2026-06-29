@@ -1,0 +1,146 @@
+<section class="records-shell">
+  <header class="records-header mat-elevation-z2">
+    <div>
+      <span class="eyebrow">Registros</span>
+      <p class="muted">Última actualización: {{ lastUpdatedAt() || 'pendiente' }} · Próximo refresco en {{ refreshCountdown() }}s</p>
+    </div>
+
+    <div class="stats-grid">
+      <mat-card class="stat-card">
+        <span>Total</span>
+        <strong>{{ totalRecords() }}</strong>
+      </mat-card>
+      <mat-card class="stat-card">
+        <span>Pagado</span>
+        <strong>S/ {{ totalPaid() | number:'1.2-2' }}</strong>
+      </mat-card>
+      <mat-card class="stat-card">
+        <span>Debe</span>
+        <strong>S/ {{ totalBalance() | number:'1.2-2' }}</strong>
+      </mat-card>
+    </div>
+  </header>
+
+  <mat-card class="panel-card">
+    <div class="alerts-zone">
+      <div class="alerts-title">
+        <h2>Alertas de llamadas</h2>
+        <span class="muted">Se muestran aquí dentro del módulo de registros</span>
+      </div>
+
+      @if (nextCallScheduledAt()) {
+        <div class="alert-box info">
+          <strong>Próxima llamada general</strong>
+          <div>{{ nextCallScheduledAt() }}</div>
+        </div>
+      }
+
+      @if (loadingAlerts()) {
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      }
+
+      @if (dueAlerts().length) {
+        <div class="alert-box danger">
+          <strong>Llamadas vencidas</strong>
+          <ul>
+            @for (item of dueAlerts(); track item.id) {
+              <li>{{ item.cellphone }} - {{ item.nameOrReference }} - {{ item.callActivity }}</li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (upcomingAlerts().length) {
+        <div class="alert-box warning">
+          <strong>Próximas llamadas</strong>
+          <ul>
+            @for (item of upcomingAlerts(); track item.id) {
+              <li>{{ item.cellphone }} - {{ item.nameOrReference }} - {{ item.callActivity }}</li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="panel-card">
+    <form class="filters-grid" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="status-filters">
+        <div class="muted">Estados</div>
+        <div class="status-filters-list">
+          @for (status of statuses(); track status.id) {
+            <mat-checkbox
+              [checked]="filterForm.controls.statusIds.value.includes(status.id)"
+              (change)="toggleStatus(status.id, $event.checked)">
+              {{ status.name }}
+            </mat-checkbox>
+          }
+        </div>
+      </div>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar</mat-label>
+        <input matInput formControlName="search" placeholder="Celular, nombre, DNI" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Desde</mat-label>
+        <input matInput type="date" formControlName="fromDate" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Hasta</mat-label>
+        <input matInput type="date" formControlName="toDate" />
+      </mat-form-field>
+
+    </form>
+  </mat-card>
+
+  <mat-card class="panel-card table-card">
+    @if (loading()) {
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    }
+
+    @if (errorMessage()) {
+      <div class="alert-box error">{{ errorMessage() }}</div>
+    }
+
+    <div class="table-container">
+      <table mat-table [dataSource]="records()" class="mat-elevation-z1">
+        <ng-container matColumnDef="cellphone">
+          <th mat-header-cell *matHeaderCellDef>Celular</th>
+          <td mat-cell *matCellDef="let row">{{ row.cellphone }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="nameOrReference">
+          <th mat-header-cell *matHeaderCellDef>Nombre</th>
+          <td mat-cell *matCellDef="let row">{{ row.nameOrReference }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Estado</th>
+          <td mat-cell *matCellDef="let row">
+            <span class="status-badge" [ngClass]="'status-' + (row.badgeClass || 'primary')">
+              {{ row.statusName || ('#' + row.statusCatalogId) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="balanceDue">
+          <th mat-header-cell *matHeaderCellDef>Debe</th>
+          <td mat-cell *matCellDef="let row">S/ {{ row.balanceDue | number:'1.2-2' }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <a mat-stroked-button color="primary" [href]="editUrl(row.id)">Editar</a>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+  </mat-card>
+</section>

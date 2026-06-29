@@ -62,6 +62,13 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         [Display(Name = "Actividad de la llamada")]
         public string? CallActivity { get; set; }
 
+        [DataType(DataType.DateTime)]
+        [Display(Name = "Fecha y hora de llamada")]
+        public DateTime? CallScheduledAt { get; set; }
+
+        [Display(Name = "Llamada concretada")]
+        public bool IsCallConcrete { get; set; }
+
         [Display(Name = "DNI")]
         public string? Dni { get; set; }
 
@@ -124,6 +131,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             Cellphone = record.Cellphone,
             NameOrReference = record.NameOrReference,
             CallActivity = record.CallActivity,
+            CallScheduledAt = record.CallScheduledAt,
+            IsCallConcrete = record.IsCallConcrete,
             Dni = record.Dni,
             ProductId = record.ProductId,
             Quantity = record.Quantity,
@@ -189,6 +198,10 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             cambios["Nombre/Ref"] = $"{record.NameOrReference} ? {Input.NameOrReference?.Trim()}";
         if (record.CallActivity != (Input.CallActivity?.Trim() ?? string.Empty))
             cambios["Actividad"] = $"{record.CallActivity} ? {Input.CallActivity?.Trim()}";
+        if (record.CallScheduledAt != Input.CallScheduledAt)
+            cambios["Fecha llamada"] = $"{record.CallScheduledAt?.ToString("yyyy-MM-dd HH:mm")} ? {Input.CallScheduledAt?.ToString("yyyy-MM-dd HH:mm")}";
+        if (record.IsCallConcrete != Input.IsCallConcrete)
+            cambios["Llamada concretada"] = $"{record.IsCallConcrete} ? {Input.IsCallConcrete}";
         if (record.ProductId != Input.ProductId)
             cambios["Producto"] = $"{record.ProductId} ? {Input.ProductId}";
         if (record.Quantity != Input.Quantity)
@@ -207,6 +220,8 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
         record.Cellphone = normalizedCellphone;
         record.NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty;
         record.CallActivity = Input.CallActivity?.Trim() ?? string.Empty;
+        record.CallScheduledAt = Input.CallScheduledAt;
+        record.IsCallConcrete = Input.IsCallConcrete;
         record.Dni = Input.Dni?.Trim() ?? string.Empty;
         record.ProductId = Input.ProductId;
         record.Quantity = Input.ProductId.HasValue ? Input.Quantity : 1;
@@ -366,16 +381,18 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
 
     private async Task LoadLookupsAsync()
     {
+        var companyId = User.GetCompanyId();
+
         var statuses = await db.Statuses
             .AsNoTracking()
-            .Where(x => x.IsActive && (!User.GetCompanyId().HasValue || x.CompanyId == User.GetCompanyId().Value))
+            .Where(x => x.IsActive && (!companyId.HasValue || x.CompanyId == companyId.Value))
             .OrderBy(x => x.SortOrder)
             .ThenBy(x => x.Name)
             .ToListAsync();
 
         var products = await db.Products
             .AsNoTracking()
-            .Where(x => x.IsActive && (!User.GetCompanyId().HasValue || x.CompanyId == User.GetCompanyId().Value))
+            .Where(x => x.IsActive && (!companyId.HasValue || x.CompanyId == companyId.Value))
             .Include(x => x.Prices)
             .Include(x => x.CommissionTiers)
             .Include(x => x.StockMovements)
@@ -428,6 +445,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             Cellphone = record.Cellphone,
             NameOrReference = record.NameOrReference,
             CallActivity = record.CallActivity,
+            CallScheduledAt = record.CallScheduledAt,
             Dni = record.Dni,
             ProductId = record.ProductId,
             Quantity = record.Quantity,

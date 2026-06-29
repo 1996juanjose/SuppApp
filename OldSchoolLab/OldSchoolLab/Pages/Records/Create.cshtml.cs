@@ -49,6 +49,10 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
         [Display(Name = "Actividad de la llamada")]
         public string? CallActivity { get; set; }
 
+        [DataType(DataType.DateTime)]
+        [Display(Name = "Fecha y hora de llamada")]
+        public DateTime? CallScheduledAt { get; set; }
+
         [Display(Name = "DNI")]
         public string? Dni { get; set; }
 
@@ -154,6 +158,7 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             Cellphone = NormalizeCellphone(Input.Cellphone),
             NameOrReference = Input.NameOrReference?.Trim() ?? string.Empty,
             CallActivity = Input.CallActivity?.Trim() ?? string.Empty,
+            CallScheduledAt = Input.CallScheduledAt,
             Dni = Input.Dni?.Trim() ?? string.Empty,
             ProductId = Input.ProductId,
             Quantity = Input.ProductId.HasValue ? Input.Quantity : 1,
@@ -230,6 +235,7 @@ public class CreateModel(ApplicationDbContext db, IAuditService audit, IPaymentP
             {
                 Celular = record.Cellphone,
                 Fecha = record.RecordDate.ToString("yyyy-MM-dd"),
+                LlamadaProgramada = record.CallScheduledAt?.ToString("yyyy-MM-dd HH:mm"),
                 EstadoId = record.StatusCatalogId,
                 ProductoId = record.ProductId,
                 Cantidad = record.Quantity,

@@ -11,12 +11,14 @@ public class LogoutModel(SignInManager<ApplicationUser> signInManager) : PageMod
 {
     public async Task<IActionResult> OnGetAsync()
     {
+        HttpContext.Session.Remove("ChatApiJwt");
         await signInManager.SignOutAsync();
         return RedirectToPage("/Account/Login");
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
+        HttpContext.Session.Remove("ChatApiJwt");
         await signInManager.SignOutAsync();
         return RedirectToPage("/Account/Login");
     }

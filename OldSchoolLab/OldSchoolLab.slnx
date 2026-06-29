@@ -1,4 +1,7 @@
-﻿<Solution>
-  <Project Path="OldSchoolLab/OldSchoolLab.csproj" />
+<Solution>
+  <Project Path="../OldSchool.ApiGateway/OldSchool.ApiGateway.csproj" />
+  <Project Path="../OldSchool.AuthService/OldSchool.AuthService.csproj" />
+  <Project Path="../OldSchool.ChatApi/OldSchool.ChatApi.csproj" />
   <Project Path="../OldSchoolApi/OldSchoolApi/OldSchoolApi.csproj" />
+  <Project Path="OldSchoolLab/OldSchoolLab.csproj" />
 </Solution>

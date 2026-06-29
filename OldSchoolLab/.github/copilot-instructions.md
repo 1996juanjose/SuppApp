@@ -13,3 +13,4 @@
 - Configure the projects to use PostgreSQL instead of SQL Server.
 - For `OldSchoolApi`, the Docker container should expose port `8080`.
 - For `OldSchoolLab`, the Docker container should expose port `8085`.
+- In `OldSchoolLab`, call alerts should not be treated as a separate module; they should reside within the logging module, consistent with the MVC pattern.
