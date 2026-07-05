@@ -36,7 +36,7 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
 
         [Required]
         [DataType(DataType.Password)]
-        [Display(Name = "Contraseña")]
+        [Display(Name = "Contrasena")]
         public string Password { get; set; } = string.Empty;
 
         [Display(Name = "Recordarme")]
@@ -74,7 +74,7 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
             user = await userManager.FindByNameAsync(Input.UserName.Trim());
             if (user is null || !await userManager.IsInRoleAsync(user, "SuperAdmin"))
             {
-                ModelState.AddModelError(string.Empty, "Usuario, empresa o contraseña inválidos.");
+                ModelState.AddModelError(string.Empty, "Usuario, empresa o contrasena invalidos.");
                 return Page();
             }
 
@@ -92,7 +92,7 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
 
             if (user is null || user.Company is null || !user.Company.IsActive)
             {
-                ModelState.AddModelError(string.Empty, "Usuario, empresa o contraseña inválidos.");
+                ModelState.AddModelError(string.Empty, "Usuario, empresa o contrasena invalidos.");
                 return Page();
             }
 
@@ -106,7 +106,7 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
         }
         else
         {
-            ModelState.AddModelError(nameof(Input.CompanyKey), "Selecciona una empresa válida.");
+            ModelState.AddModelError(nameof(Input.CompanyKey), "Selecciona una empresa valida.");
             return Page();
         }
 
@@ -131,7 +131,7 @@ public class LoginModel(SignInManager<ApplicationUser> signInManager, UserManage
             return LocalRedirect(returnUrl ?? Url.Page("/Index")!);
         }
 
-        ModelState.AddModelError(string.Empty, "Usuario, empresa o contraseña inválidos.");
+        ModelState.AddModelError(string.Empty, "Usuario, empresa o contrasena invalidos.");
         return Page();
     }
 
