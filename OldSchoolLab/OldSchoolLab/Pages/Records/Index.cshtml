@@ -5,7 +5,7 @@
     int totalCols = 16 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
 }
 
-@if (Model.EarlyCollectionAlerts.Count > 0 || Model.CollectionAlerts.Count > 0)
+@* @if (Model.EarlyCollectionAlerts.Count > 0 || Model.CollectionAlerts.Count > 0)
 {
     <div class="alert alert-danger shadow-sm mb-4">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -18,16 +18,16 @@
                     }
                     @if (Model.CollectionAlerts.Count > 0)
                     {
-                        <span> @Model.CollectionAlerts.Count registro(s) con 7 días o más desde el último pago.</span>
+                        <span> @Model.CollectionAlerts.Count registro(s) con 7 dÝas o mßs desde el ·ltimo pago.</span>
                     }
                 </div>
             </div>
             <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
-                Ver cobranzas
+                Cobranzas
             </button>
         </div>
     </div>
-}
+} *@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
@@ -38,18 +38,22 @@
         @if (Model.CanEdit)
         {
             <a asp-page="/Records/Create" class="btn btn-primary">Nuevo registro</a>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
+                Cobranzas
+            </button>
         }
         <a asp-page="/Records/PrintDay"
            asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")"
            class="btn btn-outline-dark"
-           title="Imprimir documento del d?a">
-            <span aria-hidden="true">&#128424;</span> Imprimir documento del d?a (@Model.PrintDayCount)
+           title="Impresion">
+            <span aria-hidden="true">&#128424;</span> Impresion (@Model.PrintDayCount)
         </a>
         <form method="post" asp-page-handler="ClearPrintDay" asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")" class="d-inline">
-            <button type="submit" class="btn btn-outline-danger">
-                Limpiar impresi?n del d?a
+            <button type="submit" class="btn btn-outline-danger" title="Limpiar impresion del dia">
+                <span aria-hidden="true">&#128465;</span>
             </button>
         </form>
+        
     </div>
 </div>
 
@@ -66,7 +70,7 @@
                     @if (Model.EarlyCollectionAlerts.Count > 0)
                     {
                         <div class="mb-4">
-                            <div class="fw-semibold mb-2">Empezar a cobrar lo restante (3 días o más)</div>
+                            <div class="fw-semibold mb-2">Empezar a cobrar lo restante (3 dÝas o mßs)</div>
                             <div class="list-group small">
                                 @foreach (var item in Model.EarlyCollectionAlerts)
                                 {
@@ -77,7 +81,7 @@
                                         </div>
                                         <div class="text-end small">
                                             <div>@item.AlertType</div>
-                                            <div>@item.DaysSinceLastPayment día(s)</div>
+                                            <div>@item.DaysSinceLastPayment dÝa(s)</div>
                                             <div>S/ @item.BalanceDue.ToString("0.00")</div>
                                         </div>
                                     </a>
@@ -89,7 +93,7 @@
                     @if (Model.CollectionAlerts.Count > 0)
                     {
                         <div class="mb-4">
-                            <div class="fw-semibold mb-2">Cobranza fuerte (7 días o más)</div>
+                            <div class="fw-semibold mb-2">Cobranza fuerte (7 dÝas o mßs)</div>
                             <div class="list-group small">
                                 @foreach (var item in Model.CollectionAlerts)
                                 {
@@ -100,7 +104,7 @@
                                         </div>
                                         <div class="text-end small">
                                             <div>@item.AlertType</div>
-                                            <div>@item.DaysSinceLastPayment día(s)</div>
+                                            <div>@item.DaysSinceLastPayment dÝa(s)</div>
                                             <div>S/ @item.BalanceDue.ToString("0.00")</div>
                                         </div>
                                     </a>
@@ -193,11 +197,11 @@
                 <div class="small">
                     @if (Model.DueCallReminders.Count > 0)
                     {
-                        <span>Se detectaron @Model.DueCallReminders.Count llamada(s) vencida(s) en los últimos 21 días.</span>
+                        <span>Se detectaron @Model.DueCallReminders.Count llamada(s) vencida(s) en los ·ltimos 21 dÝas.</span>
                     }
                     @if (Model.UpcomingCallReminders.Count > 0)
                     {
-                        <span> Hay @Model.UpcomingCallReminders.Count llamada(s) próxima(s) en los siguientes 5 minutos.</span>
+                        <span> Hay @Model.UpcomingCallReminders.Count llamada(s) pr¾xima(s) en los siguientes 5 minutos.</span>
                     }
                 </div>
             </div>
@@ -260,7 +264,7 @@
                     @if (Model.UpcomingCallReminders.Count > 0)
                     {
                         <div>
-                            <div class="fw-semibold mb-2">Llamadas próximas en 5 minutos</div>
+                            <div class="fw-semibold mb-2">Llamadas pr¾ximas en 5 minutos</div>
                             <div class="list-group small">
                                 @foreach (var call in Model.UpcomingCallReminders)
                                 {
@@ -332,12 +336,12 @@
                 <th>Pagado</th>
                 <th>Debe</th>
                 <th>Pagos</th>
-                <th>Últ. pago</th>
-                <th>Ruta carpeta</th>
-                <th>Impresión</th>
+                <th>Ult. pago</th>
                 <th>Destino</th>
-                <th>Clave</th>
-                <th>Guía</th>
+                <th>Ruta carpeta</th>
+                <th>Impresi¾n</th>
+                <th>Codigo</th>
+                <th>Nro orden</th>
                 <th>Usuario</th>
                 @if (Model.CanViewAudit)
                 {
@@ -392,29 +396,29 @@
                         </button>
                     </td>
                     <td>@(item.Payments.Any(x => !x.IsReversed) ? item.Payments.Where(x => !x.IsReversed).Max(x => x.PaymentDate).ToString("yyyy-MM-dd") : "-")</td>
-                    <td class="text-truncate" style="max-width:100px" title="@item.FolderPath">@item.FolderPath</td>
-                    <td class="text-center">
-                        <form method="post" asp-page-handler="AddToPrintDay" asp-route-id="@item.Id" asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")" class="d-inline">
-                            <button type="submit" class="btn btn-sm btn-outline-dark" title="Agregar a impresión del día">
-                                <span aria-hidden="true">&#128424;</span>
-                            </button>
-                        </form>
-                    </td>
                     <td>
                         <div class="logistics-field-cell">
                             <div class="fw-bold text-uppercase small text-primary">Destino</div>
                             <div class="text-break">@item.Destino</div>
                         </div>
                     </td>
+                    <td class="text-truncate" style="max-width:100px" title="@item.FolderPath">@item.FolderPath</td>
+                    <td class="text-center">
+                        <form method="post" asp-page-handler="AddToPrintDay" asp-route-id="@item.Id" asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-dark" title="Agregar a impresi?n del d?a">
+                                <span aria-hidden="true">&#128424;</span>
+                            </button>
+                        </form>
+                    </td>
                     <td>
                         <div class="logistics-field-cell">
-                            <div class="fw-bold text-uppercase small text-primary">Clave</div>
+                            <div class="fw-bold text-uppercase small text-primary">Codigo</div>
                             <div class="text-break">@item.Clave</div>
                         </div>
                     </td>
                     <td>
                         <div class="logistics-field-cell">
-                            <div class="fw-bold text-uppercase small text-primary">Guía</div>
+                            <div class="fw-bold text-uppercase small text-primary">Nro orden</div>
                             <div class="text-break">@item.Guia</div>
                         </div>
                     </td>
@@ -476,7 +480,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                ¿Estás seguro de eliminar el registro de <strong id="deleteCelular"></strong>? Esta acción no se puede deshacer y se eliminarán todos los pagos asociados.
+                +Estßs seguro de eliminar el registro de <strong id="deleteCelular"></strong>? Esta acci¾n no se puede deshacer y se eliminarßn todos los pagos asociados.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -500,7 +504,7 @@
                 <img id="paymentImagePreview" src="" alt="Comprobante" class="img-fluid rounded" />
             </div>
             <div class="modal-footer">
-                <a id="paymentImageOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pestaña</a>
+                <a id="paymentImageOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pesta±a</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
@@ -522,7 +526,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
             const id = btn.dataset.id;
             const celular = btn.dataset.celular;
 
-            document.getElementById('paymentsModalLabel').textContent = `Pagos · Celular: ${celular}`;
+            document.getElementById('paymentsModalLabel').textContent = `Pagos À Celular: ${celular}`;
             document.getElementById('paymentsModalBody').innerHTML =
                 '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
 
@@ -550,7 +554,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
 
         const rows = payments.map(payment => {
             const statusHtml = payment.isReversed
-                ? `<div><span class="badge text-bg-danger">Extornado</span><div class="small text-muted mt-1">${payment.reversedByUserName ?? ''} ${payment.reversedAt ?? ''}</div></div>`
+                ? `<div><span class="badge text-bg-danger">Extornado</span><div class="small text-muted mt-1">${payment.reversedByUserName ?? ''} ${payment.reversedAt ?? ''}</div></div>` 
                 : '<span class="badge text-bg-success">Activo</span>';
 
             const proofHtml = payment.proofImagePath
@@ -565,7 +569,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                     <td>${statusHtml}</td>
                     <td>${payment.createdByUserName ?? ''}</td>
                     <td>${proofHtml}</td>
-                </tr>`;
+                </tr>` ;
         }).join('');
 
         body.innerHTML = `
@@ -575,7 +579,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                         <tr>
                             <th>Fecha pago</th>
                             <th>Registrado</th>
-                            <th>Cod. operación</th>
+                            <th>Cod. operaci¾n</th>
                             <th>Monto</th>
                             <th>Estado</th>
                             <th>Usuario</th>
@@ -584,7 +588,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                     </thead>
                     <tbody>${rows}</tbody>
                 </table>
-            </div>`;
+            </div>` ;
     }
 
     document.getElementById('paymentsModalBody').addEventListener('click', event => {
@@ -733,7 +737,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                 const id = btn.dataset.id;
                 const celular = btn.dataset.celular;
 
-                document.getElementById('auditModalLabel').textContent = `Historial · Celular: ${celular}`;
+                document.getElementById('auditModalLabel').textContent = `Historial À Celular: ${celular}`;
                 document.getElementById('auditModalBody').innerHTML =
                     '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
 
@@ -772,32 +776,33 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                             <span class="text-muted small">${log.changedAt}</span>
                         </div>
                         ${renderDetails(log.details)}
-                    </div>`;
+                    </div>` ;
             }
 
             body.innerHTML = html;
         }
 
         function renderDetails(details) {
-            if (!details) return '';
+            if (!details) return '' ;
 
             try {
                 const data = JSON.parse(details);
 
                 if (typeof data !== 'object' || Array.isArray(data)) {
-                    return `<pre class="bg-light p-2 rounded small">${JSON.stringify(data, null, 2)}</pre>`;
+                    return `<pre class="bg-light p-2 rounded small">${JSON.stringify(data, null, 2)}</pre>` ;
                 }
 
-                let rows = '';
+                let rows = '' ;
                 for (const [key, value] of Object.entries(data)) {
-                    rows += `<tr><td class="fw-semibold text-nowrap">${key}</td><td>${value ?? ''}</td></tr>`;
+                    rows += `<tr><td class="fw-semibold text-nowrap">${key}</td><td>${value ?? ''}</td></tr>` ;
                 }
 
-                return `<table class="table table-sm table-bordered mb-0"><tbody>${rows}</tbody></table>`;
+                return `<table class="table table-sm table-bordered mb-0"><tbody>${rows}</tbody></table>` ;
             } catch {
-                return `<pre class="bg-light p-2 rounded small">${details}</pre>`;
+                return `<pre class="bg-light p-2 rounded small">${details}</pre>` ;
             }
         }
     </script>
 }
+
 
