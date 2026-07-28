@@ -1137,12 +1137,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(normalized))
             return null;
 
-        var registeredDestinations = await db.CustomerRecords
-            .AsNoTracking()
-            .Where(x => x.Destino != null && x.Destino != string.Empty)
-            .Select(x => x.Destino)
-            .Distinct()
-            .ToListAsync();
+        var registeredDestinations = OldSchoolApi.Services.DestinosCatalog.Destinos;
 
         var exact = registeredDestinations.FirstOrDefault(x => string.Equals(NormalizeDestination(x), normalized, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(exact))
