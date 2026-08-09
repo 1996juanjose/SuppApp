@@ -587,6 +587,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         [JsonPropertyName("orderNumber")] public string OrderNumber { get; set; } = string.Empty;
         [JsonPropertyName("code")] public string Code { get; set; } = string.Empty;
         [JsonPropertyName("destination")] public string Destination { get; set; } = string.Empty;
+        [JsonPropertyName("recipientName")] public string RecipientName { get; set; } = string.Empty;
+        [JsonPropertyName("dni")] public string Dni { get; set; } = string.Empty;
     }
 
     private class TextMessageResult
@@ -771,6 +773,11 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         record.FolderPath = orderNumber;
         record.Guia = code;
         record.Destino = resolvedDestination;
+        if (!string.IsNullOrWhiteSpace(shipmentData.RecipientName))
+            record.NameOrReference = shipmentData.RecipientName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(shipmentData.Dni))
+            record.Dni = shipmentData.Dni.Trim();
 
         await db.SaveChangesAsync();
 
@@ -783,6 +790,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             rutaCarpeta = record.FolderPath,
             guia = record.Guia,
             destino = record.Destino,
+            recipientName = record.NameOrReference,
+            dni = record.Dni,
             destinoDetectado = destination,
             destinoResuelto = resolvedDestination,
             changes
@@ -957,7 +966,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\"}. Para destination, si ves varias l?neas debajo de 'Destino', devuelve la l?nea m?s espec?fica y concreta del env?o (por ejemplo: avenida, calle, cdra, km, referencia o nombre de direcci?n final) y NO la l?nea general de regi?n/provincia/distrito como 'Lima - Ca?ete - Chilca'. Si la imagen muestra una l?nea general y luego otra m?s espec?fica, prioriza la m?s espec?fica aunque est? m?s abajo. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\"}. No inventes datos."
+                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\", \"recipientName\": \"texto exacto del Destinatario\", \"dni\": \"texto exacto del N? Doc o DNI\"}. Para destination, si ves varias l?neas debajo de 'Destino', devuelve la l?nea m?s espec?fica y concreta del env?o (por ejemplo: avenida, calle, cdra, km, referencia o nombre de direcci?n final) y NO la l?nea general de regi?n/provincia/distrito como 'Lima - Ca?ete - Chilca'. Si la imagen muestra una l?nea general y luego otra m?s espec?fica, prioriza la m?s espec?fica aunque est? m?s abajo. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\", \"recipientName\": \"\", \"dni\": \"\"}. No inventes datos."
                         },
                         imageContent
                     }
