@@ -777,7 +777,12 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             record.NameOrReference = shipmentData.RecipientName.Trim();
 
         if (!string.IsNullOrWhiteSpace(shipmentData.Dni))
+        {
             record.Dni = shipmentData.Dni.Trim();
+            var generatedClave = GenerateClaveFromDni(record.Dni);
+            if (!string.IsNullOrWhiteSpace(generatedClave))
+                record.Clave = generatedClave;
+        }
 
         await db.SaveChangesAsync();
 
@@ -966,7 +971,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\", \"recipientName\": \"texto exacto del Destinatario\", \"dni\": \"texto exacto del N? Doc o DNI\"}. Para destination, si ves varias l?neas debajo de 'Destino', devuelve la l?nea m?s espec?fica y concreta del env?o (por ejemplo: avenida, calle, cdra, km, referencia o nombre de direcci?n final) y NO la l?nea general de regi?n/provincia/distrito como 'Lima - Ca?ete - Chilca'. Si la imagen muestra una l?nea general y luego otra m?s espec?fica, prioriza la m?s espec?fica aunque est? m?s abajo. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\", \"recipientName\": \"\", \"dni\": \"\"}. No inventes datos."
+                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\", \"recipientName\": \"texto exacto del Destinatario\", \"dni\": \"texto exacto del N? Doc o DNI\"}. Para destination, si hay una l?nea arriba en negrita o m?s destacada y otra l?nea abajo con la direcci?n completa, devuelve la l?nea de arriba (la principal/registrada) y NO la l?nea inferior de detalle. Si la imagen muestra una l?nea general y luego otra m?s espec?fica, prioriza siempre la primera o la que est? resaltada como destino principal. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\", \"recipientName\": \"\", \"dni\": \"\"}. No inventes datos."
                         },
                         imageContent
                     }
