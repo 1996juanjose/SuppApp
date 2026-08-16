@@ -106,7 +106,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
         if (status is null)
         {
-            return BadRequest(new { error = "Estado inválido." });
+            return BadRequest(new { error = "Estado invï¿½lido." });
         }
 
         var productDetails = await ResolveProductDetailsForUpdateAsync(request.ProductId, request.Quantity, companyId, cancellationToken);
@@ -118,7 +118,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         var normalizedCellphone = NormalizeCellphone(request.Cellphone);
         if (string.IsNullOrWhiteSpace(normalizedCellphone))
         {
-            return BadRequest(new { error = "El campo Celular no tiene un formato válido." });
+            return BadRequest(new { error = "El campo Celular no tiene un formato vï¿½lido." });
         }
 
         var paidAmount = record.PaidAmount;
@@ -177,13 +177,13 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
     public class CreateRecordRequest
     {
-        /// <summary>Número de celular. Si ya existe en el sistema, no se modifica.</summary>
+        /// <summary>Nï¿½mero de celular. Si ya existe en el sistema, no se modifica.</summary>
         public string Celular { get; set; } = string.Empty;
 
-        /// <summary>Nombre del estado. Si no se envía, se usa 'Prospecto'.</summary>
+        /// <summary>Nombre del estado. Si no se envï¿½a, se usa 'Prospecto'.</summary>
         public string? Estado { get; set; }
 
-        /// <summary>Fecha (yyyy-MM-dd). Si no se envía, se usa la fecha de hoy.</summary>
+        /// <summary>Fecha (yyyy-MM-dd). Si no se envï¿½a, se usa la fecha de hoy.</summary>
         public string? AutoCont { get; set; }
 
         /// <summary>Nombre o referencia WhatsApp.</summary>
@@ -229,7 +229,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey)
             || !string.Equals(apiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
         {
-            return Unauthorized(new { error = "ApiKey inválida." });
+            return Unauthorized(new { error = "ApiKey invï¿½lida." });
         }
 
         return await CreateInternalAsync(request, "n8n", "n8n");
@@ -440,7 +440,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         var celular = NormalizeCellphone(request.Celular);
 
         if (string.IsNullOrWhiteSpace(celular))
-            return BadRequest(new { error = "El campo Celular no tiene un formato válido." });
+            return BadRequest(new { error = "El campo Celular no tiene un formato vï¿½lido." });
 
         var existe = await db.CustomerRecords
             .AsNoTracking()
@@ -456,7 +456,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             return Ok(new
             {
                 skipped = true,
-                message = $"El celular {celular} ya está registrado. No se realizaron cambios."
+                message = $"El celular {celular} ya estï¿½ registrado. No se realizaron cambios."
             });
         }
 
@@ -473,7 +473,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                 .FirstOrDefaultAsync();
 
         if (status is null)
-            return BadRequest(new { error = "No se encontró un estado válido en el sistema." });
+            return BadRequest(new { error = "No se encontrï¿½ un estado vï¿½lido en el sistema." });
 
         var fecha = AppClock.Today(config);
         if (!string.IsNullOrWhiteSpace(request.AutoCont)
@@ -545,7 +545,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         /// <summary>Celular del remitente (enviado por n8n desde WhatsApp).</summary>
         public string Celular { get; set; } = string.Empty;
 
-        /// <summary>URL pública de la imagen del comprobante (Yape/Plin).</summary>
+        /// <summary>URL pï¿½blica de la imagen del comprobante (Yape/Plin).</summary>
         public string? ImageUrl { get; set; }
 
         /// <summary>Imagen en base64 (alternativa a ImageUrl).</summary>
@@ -560,7 +560,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         /// <summary>Imagen en base64.</summary>
         public string? ImageBase64 { get; set; }
 
-        /// <summary>Extensión de la imagen (jpg, png, webp...).</summary>
+        /// <summary>Extensiï¿½n de la imagen (jpg, png, webp...).</summary>
         public string? ImageExtension { get; set; }
     }
 
@@ -613,7 +613,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
         if (!Request.Headers.TryGetValue("X-Api-Key", out var apiKey)
             || !string.Equals(apiKey.ToString(), configuredApiKey, StringComparison.Ordinal))
-            return Unauthorized(new { error = "ApiKey inválida." });
+            return Unauthorized(new { error = "ApiKey invï¿½lida." });
 
         if (string.IsNullOrWhiteSpace(request.Celular))
             return BadRequest(new { error = "El campo Celular es obligatorio." });
@@ -633,7 +633,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                 .Replace("+", string.Empty) == celular);
 
         if (record is null)
-            return NotFound(new { error = $"No se encontró un registro para el celular {celular}." });
+            return NotFound(new { error = $"No se encontrï¿½ un registro para el celular {celular}." });
 
         // Extraer datos del comprobante con IA
         PaymentImageResult? paymentData;
@@ -648,7 +648,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         }
 
         if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0)
-            return BadRequest(new { error = "No se pudo detectar un comprobante de pago válido en la imagen." });
+            return BadRequest(new { error = "No se pudo detectar un comprobante de pago vï¿½lido en la imagen." });
 
         var statusBaseQuery = db.Statuses
             .AsNoTracking()
@@ -659,7 +659,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         var porPagarStatus = await statusBaseQuery.FirstOrDefaultAsync(x => x.Name == "Por Pagar");
 
         if (currentStatus is not null && (currentStatus.Name == "Cliente" || currentStatus.Name == "Clientes"))
-            return Conflict(new { error = "El registro ya está marcado como cliente y no se pueden registrar más pagos." });
+            return Conflict(new { error = "El registro ya estï¿½ marcado como cliente y no se pueden registrar mï¿½s pagos." });
 
         // Determinar fecha del pago
         var paymentDate = DateTime.TryParse(paymentData.Date, out var parsedDate)
@@ -707,8 +707,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     }
 
     /// <summary>
-    /// Procesa una imagen de guía/orden de envío desde n8n.
-    /// Extrae N° de orden, código y destino, y actualiza el registro localizado por celular.
+    /// Procesa una imagen de guï¿½a/orden de envï¿½o desde n8n.
+    /// Extrae Nï¿½ de orden, cï¿½digo y destino, y actualiza el registro localizado por celular.
     /// </summary>
     [AllowAnonymous]
     [HttpPost("process-shipment")]
@@ -730,7 +730,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                 .Replace("+", string.Empty) == celular);
 
         if (record is null)
-            return NotFound(new { error = $"No se encontró un registro para el celular {celular}." });
+            return NotFound(new { error = $"No se encontrï¿½ un registro para el celular {celular}." });
 
         var storedImage = await SaveShipmentProofImageAsync(request.ImageBase64, request.ImageExtension);
 
@@ -746,18 +746,18 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         }
 
         if (shipmentData is null || !shipmentData.Valid)
-            return BadRequest(new { error = "No se pudo leer la orden de envío en la imagen." });
+            return BadRequest(new { error = "No se pudo leer la orden de envï¿½o en la imagen." });
 
         var orderNumber = shipmentData.OrderNumber.Trim();
         var code = shipmentData.Code.Trim();
         var destination = shipmentData.Destination.Trim();
 
         if (string.IsNullOrWhiteSpace(orderNumber) && string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(destination))
-            return BadRequest(new { error = "No se encontraron datos válidos en la imagen." });
+            return BadRequest(new { error = "No se encontraron datos vï¿½lidos en la imagen." });
 
         var resolvedDestination = await ResolveRegisteredDestinationAsync(destination);
         if (string.IsNullOrWhiteSpace(resolvedDestination))
-            return BadRequest(new { error = $"El destino '{destination}' no está registrado en el sistema." });
+            return BadRequest(new { error = $"El destino '{destination}' no estï¿½ registrado en el sistema." });
 
         var changes = new Dictionary<string, string>();
 
@@ -765,7 +765,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             changes["Ruta carpeta"] = $"{record.FolderPath} -> {orderNumber}";
 
         if (!string.Equals(record.Guia, code, StringComparison.Ordinal))
-            changes["Guía"] = $"{record.Guia} -> {code}";
+            changes["Guï¿½a"] = $"{record.Guia} -> {code}";
 
         if (!string.Equals(record.Destino, resolvedDestination, StringComparison.OrdinalIgnoreCase))
             changes["Destino"] = $"{record.Destino} -> {resolvedDestination}";
@@ -833,7 +833,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             ? normalizedProvidedCellphone
             : NormalizeCellphone(textData.Cellphone);
         if (string.IsNullOrWhiteSpace(celular))
-            return BadRequest(new { error = "No se detectó un celular válido en el mensaje." });
+            return BadRequest(new { error = "No se detectï¿½ un celular vï¿½lido en el mensaje." });
 
         var record = await db.CustomerRecords
             .FirstOrDefaultAsync(x => x.Cellphone
@@ -844,7 +844,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                 .Replace("+", string.Empty) == celular);
 
         if (record is null)
-            return NotFound(new { error = $"No se encontró un registro para el celular {celular}." });
+            return NotFound(new { error = $"No se encontrï¿½ un registro para el celular {celular}." });
 
         var changes = new Dictionary<string, string>();
 
@@ -903,7 +903,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                        text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante válido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
+                        text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": nï¿½mero, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante vï¿½lido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
                         },
                         imageContent
                     }
@@ -922,9 +922,9 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (!response.IsSuccessStatusCode)
         {
             if ((int)response.StatusCode is 401 or 403)
-                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es invï¿½lida.");
 
-            throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+            throw new InvalidOperationException($"OpenAI respondiï¿½ con error {(int)response.StatusCode}.");
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -990,9 +990,9 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (!response.IsSuccessStatusCode)
         {
             if ((int)response.StatusCode is 401 or 403)
-                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es invï¿½lida.");
 
-            throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+            throw new InvalidOperationException($"OpenAI respondiï¿½ con error {(int)response.StatusCode}.");
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -1035,7 +1035,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza este mensaje y responde SOLO JSON con: {\"valid\": true/false, \"cellphone\": \"numero de celular\", \"clientName\": \"nombre completo del cliente\", \"dni\": \"numero de DNI\"}. Si falta un dato, deja la cadena vacía. No inventes información. Mensaje: " + message
+                            text = "Analiza este mensaje y responde SOLO JSON con: {\"valid\": true/false, \"cellphone\": \"numero de celular\", \"clientName\": \"nombre completo del cliente\", \"dni\": \"numero de DNI\"}. Si falta un dato, deja la cadena vacï¿½a. No inventes informaciï¿½n. Mensaje: " + message
                         }
                     }
                 }
@@ -1053,9 +1053,9 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (!response.IsSuccessStatusCode)
         {
             if ((int)response.StatusCode is 401 or 403)
-                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+                throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es invï¿½lida.");
 
-            throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+            throw new InvalidOperationException($"OpenAI respondiï¿½ con error {(int)response.StatusCode}.");
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -1167,10 +1167,18 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     private static string NormalizeDestination(string destination)
     {
         var value = destination.Trim().ToUpperInvariant();
-        value = value.Replace("Á", "A").Replace("É", "E").Replace("Í", "I").Replace("Ó", "O").Replace("Ú", "U");
-        value = value.Replace("À", "A").Replace("È", "E").Replace("Ì", "I").Replace("Ò", "O").Replace("Ù", "U");
-        value = value.Replace("Ä", "A").Replace("Ë", "E").Replace("Ï", "I").Replace("Ö", "O").Replace("Ü", "U");
-        value = value.Replace("Ñ", "N");
+        var normalized = value.Normalize(System.Text.NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var c in normalized)
+        {
+            var category = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category != System.Globalization.UnicodeCategory.NonSpacingMark)
+                builder.Append(c);
+        }
+
+        value = builder.ToString().Normalize(System.Text.NormalizationForm.FormC);
+        value = value.Replace('Ã‘', 'N');
         return string.Join(' ', value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
