@@ -755,9 +755,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(orderNumber) && string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(destination))
             return BadRequest(new { error = "No se encontraron datos v�lidos en la imagen." });
 
-        var resolvedDestination = await ResolveRegisteredDestinationAsync(destination);
-        if (string.IsNullOrWhiteSpace(resolvedDestination))
-            return BadRequest(new { error = $"El destino '{destination}' no est� registrado en el sistema." });
+        var resolvedDestination = await ResolveRegisteredDestinationAsync(destination) ?? destination;
 
         var changes = new Dictionary<string, string>();
 
