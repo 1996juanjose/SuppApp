@@ -740,9 +740,13 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         {
             shipmentData = await ExtractShipmentDataFromImageAsync(request.ImageBase64, request.ImageExtension);
         }
-        catch (InvalidOperationException ex)
+        catch (Exception ex)
         {
-            return StatusCode(500, new { error = ex.Message });
+            return StatusCode(500, new
+            {
+                error = "Error al procesar la imagen de env�o.",
+                detail = ex.Message
+            });
         }
 
         if (shipmentData is null || !shipmentData.Valid)
