@@ -759,7 +759,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(orderNumber) && string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(destination))
             return BadRequest(new { error = "No se encontraron datos v�lidos en la imagen." });
 
-        var resolvedDestination = await ResolveRegisteredDestinationAsync(destination) ?? destination;
+        var resolvedDestination = TruncateDestination(await ResolveRegisteredDestinationAsync(destination) ?? destination);
 
         var changes = new Dictionary<string, string>();
 
@@ -973,7 +973,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\", \"recipientName\": \"texto exacto del Destinatario\", \"dni\": \"texto exacto del N? Doc o DNI\"}. Para destination, prioriza la l?nea del destino que est? resaltada, en negrita o m?s grande. Si ves una l?nea general como ciudad/provincia/distrito (por ejemplo: JULI, JULIACA, PUNO) y debajo otra l?nea m?s espec?fica como avenida, calle, jir?n o referencia (por ejemplo: Av. Lampa), devuelve la l?nea m?s espec?fica y NO la general. Si el texto tiene varias l?neas debajo de 'Destino', elige la que parezca el destino real de entrega, aunque est? m?s abajo. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\", \"recipientName\": \"\", \"dni\": \"\"}. No inventes datos."
+                            text = "Analiza esta imagen de r?tulo/gu?a de env?o. Extrae SOLO JSON con: {\"valid\": true/false, \"orderNumber\": \"texto exacto del N? de Orden\", \"code\": \"texto exacto del C?digo\", \"destination\": \"texto exacto del Destino\", \"recipientName\": \"texto exacto del Destinatario\", \"dni\": \"texto exacto del N? Doc o DNI\"}. Para destination, devuelve solo la l?nea corta y principal del destino, idealmente una combinaci?n de ciudad/zona y calle, por ejemplo: \"Miraflores Arequipa\" o \"Av. Lampa\". Si ves una l?nea general como ciudad/provincia/distrito y debajo una l?nea m?s espec?fica, usa la l?nea m?s espec?fica y breve, no la descripci?n larga. Si el texto tiene varias l?neas debajo de 'Destino', elige la que parezca el destino real de entrega. Si no puedes identificar con claridad esos campos, devuelve {\"valid\": false, \"orderNumber\": \"\", \"code\": \"\", \"destination\": \"\", \"recipientName\": \"\", \"dni\": \"\"}. No inventes datos."
                         },
                         imageContent
                     }
@@ -1182,6 +1182,12 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         value = builder.ToString().Normalize(System.Text.NormalizationForm.FormC);
         value = value.Replace('Ñ', 'N');
         return string.Join(' ', value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static string TruncateDestination(string destination)
+    {
+        var value = string.Join(' ', destination.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return value.Length <= 120 ? value : value[..120].TrimEnd();
     }
 
     private async Task<ProductUpdateSnapshot?> ResolveProductDetailsForUpdateAsync(int? productId, int quantity, int? companyId, CancellationToken cancellationToken)
