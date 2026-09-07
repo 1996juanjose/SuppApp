@@ -16,13 +16,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
 {
     public class ProcessVoucherRequest
     {
-        /// <summary>Número de celular del remitente (quien envió el voucher por WhatsApp).</summary>
+        /// <summary>Nï¿½mero de celular del remitente (quien enviï¿½ el voucher por WhatsApp).</summary>
         public string Celular { get; set; } = string.Empty;
 
         /// <summary>Imagen del voucher en Base64 (sin prefijo data:image/...).</summary>
         public string ImageBase64 { get; set; } = string.Empty;
 
-        /// <summary>Extensión de la imagen: jpg, png, etc.</summary>
+        /// <summary>Extensiï¿½n de la imagen: jpg, png, etc.</summary>
         public string ImageExtension { get; set; } = "jpg";
     }
 
@@ -53,7 +53,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         // Normalizar celular
         var celular = new string(request.Celular.Where(char.IsDigit).ToArray());
         if (string.IsNullOrWhiteSpace(celular))
-            return BadRequest(new ProcessVoucherResponse { Message = "Celular no válido." });
+            return BadRequest(new ProcessVoucherResponse { Message = "Celular no vï¿½lido." });
 
         // Buscar el registro del cliente por celular
         var record = await db.CustomerRecords
@@ -65,7 +65,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 .Replace("+", string.Empty) == celular);
 
         if (record is null)
-            return NotFound(new ProcessVoucherResponse { Message = $"No se encontró un registro con el celular {celular}." });
+            return NotFound(new ProcessVoucherResponse { Message = $"No se encontrï¿½ un registro con el celular {celular}." });
 
         // Extraer monto e info del voucher via OpenAI
         decimal montoDetectado;
@@ -89,11 +89,11 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         if (montoDetectado <= 0)
             return UnprocessableEntity(new ProcessVoucherResponse
             {
-                Message = "No se pudo detectar el monto en la imagen. Verifica que sea un voucher Yape o Plin válido.",
+                Message = "No se pudo detectar el monto en la imagen. Verifica que sea un voucher Yape o Plin vï¿½lido.",
                 TipoVoucher = tipoVoucher
             });
 
-        // Validar duplicado por número de operación
+        // Validar duplicado por nï¿½mero de operaciï¿½n
         if (!string.IsNullOrWhiteSpace(numeroOperacion))
         {
             var duplicado = await db.CustomerRecordPayments
@@ -104,7 +104,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 return Ok(new ProcessVoucherResponse
                 {
                     Success = false,
-                    Message = $"El voucher con número de operación {numeroOperacion} ya fue registrado anteriormente.",
+                    Message = $"El voucher con nï¿½mero de operaciï¿½n {numeroOperacion} ya fue registrado anteriormente.",
                     MontoDetectado = montoDetectado,
                     TipoVoucher = tipoVoucher
                 });
@@ -199,12 +199,12 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                             {
                                 type = "text",
                                 text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
-                                       "Debes detectar cualquier monto visible, pequeño o grande, por ejemplo S/ 3.00, S/ 30.00, S/ 69.00 o S/ 129.00. " +
-                                       "Extrae también la fecha y hora exactas del pago. " +
+                                       "Debes detectar cualquier monto visible, pequeï¿½o o grande, por ejemplo S/ 3.00, S/ 30.00, S/ 69.00 o S/ 129.00. " +
+                                       "Extrae tambiï¿½n la fecha y hora exactas del pago. " +
                                        "Responde SOLO con un JSON exacto, sin markdown, sin texto extra: " +
                                        "{\"monto\": 3.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\", \"fecha_hora\": \"2026-05-16 12:24:00\"}. " +
-                                       "'monto' debe ser un número en soles con 2 decimales si aplica, 'tipo' debe ser 'Yape', 'Plin' o 'Desconocido', " +
-                                       "'nro_operacion' debe ser solo dígitos, sin espacios ni símbolos. " +
+                                       "'monto' debe ser un nï¿½mero en soles con 2 decimales si aplica, 'tipo' debe ser 'Yape', 'Plin' o 'Desconocido', " +
+                                       "'nro_operacion' debe ser solo dï¿½gitos, sin espacios ni sï¿½mbolos. " +
                                        "'fecha_hora' debe ser la fecha y hora del voucher en formato yyyy-MM-dd HH:mm:ss. " +
                                        "Si no puedes leer el voucher con seguridad, devuelve {\"monto\": 0, \"tipo\": \"Desconocido\", \"nro_operacion\": \"\", \"fecha_hora\": \"\"}."
                             },
@@ -228,9 +228,9 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             if (!response.IsSuccessStatusCode)
             {
                 if ((int)response.StatusCode is 401 or 403)
-                    throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es inválida.");
+                    throw new InvalidOperationException("No hay ApiKey de OpenAI configurada o es invï¿½lida.");
 
-                throw new InvalidOperationException($"OpenAI respondió con error {(int)response.StatusCode}.");
+                throw new InvalidOperationException($"OpenAI respondiï¿½ con error {(int)response.StatusCode}.");
             }
 
             var doc = JsonDocument.Parse(responseJson);
@@ -346,5 +346,11 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
         }
 
         return trimmed;
+    }
+
+    private static bool IsAcceptedVoucherType(string tipoVoucher)
+    {
+        var normalized = tipoVoucher.Trim().ToUpperInvariant();
+        return normalized is "YAPE" or "PLIN" or "BCP" or "TRANSFERENCIA" or "BANCO" or "TRANSFERENCIA BANCARIA" or "DEPOSITO" or "DEPï¿½SITO" or "TRANSFERENCIA BCP" or "PAGO MOVIL";
     }
 }

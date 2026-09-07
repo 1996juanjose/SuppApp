@@ -905,7 +905,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin, BCP o de una entidad bancaria. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos, tickets de bus, vouchers de envío, publicaciones o cualquier imagen que no sea una transacción financiera. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia|Banco\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
+                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin, BCP o de una entidad bancaria. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos, tickets de bus, vouchers de envío, publicaciones, promociones, publicidad con precios o cualquier imagen que no sea una transacción financiera. Si la imagen corresponde a una empresa de transporte, boleta de venta, ticket, afiche o anuncio de producto, devuelve inválido aunque aparezcan montos, QR o la palabra 'pago'. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia|Banco\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
                         },
                         imageContent
                     }
@@ -1193,7 +1193,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     private static bool IsAcceptedPaymentType(string paymentType)
     {
         var normalized = paymentType.Trim().ToUpperInvariant();
-        return normalized is "YAPE" or "PLIN" or "BCP" or "TRANSFERENCIA" or "BANCO" or "TRANSFERENCIA BCP" or "DEPOSITO" or "DEPÓSITO";
+        return normalized is "YAPE" or "PLIN" or "BCP" or "TRANSFERENCIA" or "BANCO" or "TRANSFERENCIA BCP" or "DEPOSITO" or "DEPÓSITO" or "TRANSFERENCIA BANCARIA" or "PAGO MOVIL";
     }
 
     private async Task<ProductUpdateSnapshot?> ResolveProductDetailsForUpdateAsync(int? productId, int quantity, int? companyId, CancellationToken cancellationToken)
