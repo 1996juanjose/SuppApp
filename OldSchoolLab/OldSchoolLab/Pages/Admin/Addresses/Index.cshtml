@@ -1,0 +1,76 @@
+@page
+@model OldSchoolLab.Pages.Admin.Addresses.IndexModel
+@{
+    ViewData["Title"] = "Direcciones más pedidas";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="h3 mb-0">Direcciones más pedidas</h1>
+        <p class="text-muted mb-0">Ranking de direcciones solicitadas por los clientes, ordenado de mayor a menor frecuencia.</p>
+    </div>
+</div>
+
+<form method="get" class="card shadow-sm mb-3">
+    <div class="card-body row g-3 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label" for="FromDate">Desde</label>
+            <input class="form-control" id="FromDate" name="FromDate" type="date" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="ToDate">Hasta</label>
+            <input class="form-control" id="ToDate" name="ToDate" type="date" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-primary">Filtrar</button>
+        </div>
+    </div>
+</form>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small">Total registros</div>
+                <div class="fs-5 fw-semibold">@Model.TotalRecords</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 90px;">#</th>
+                        <th>Destino</th>
+                        <th class="text-end" style="width: 160px;">Pedidos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.AddressStats.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">No hay datos para el rango seleccionado.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        var position = 1;
+                        foreach (var item in Model.AddressStats)
+                        {
+                            <tr>
+                                <td>@position</td>
+                                <td>@item.Destination</td>
+                                <td class="text-end">@item.Total</td>
+                            </tr>
+                            position++;
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

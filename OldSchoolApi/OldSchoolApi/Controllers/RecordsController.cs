@@ -905,7 +905,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                        text = "Analiza este comprobante de pago (Yape, Plin u otro). Responde SOLO con JSON: {\"valid\": true/false, \"amount\": n�mero, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|Otro\"}. Si no es un comprobante v�lido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}."
+                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin o BCP. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos o cualquier imagen que no sea una transacción de pago. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
                         },
                         imageContent
                     }
