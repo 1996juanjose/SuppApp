@@ -647,7 +647,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             return StatusCode(500, new { error = ex.Message });
         }
 
-        if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0)
+        if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0 || !IsAcceptedPaymentType(paymentData.PaymentType))
             return BadRequest(new { error = "No se pudo detectar un comprobante de pago v�lido en la imagen." });
 
         var statusBaseQuery = db.Statuses
@@ -905,7 +905,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin o BCP. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos o cualquier imagen que no sea una transacción de pago. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
+                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin, BCP o de una entidad bancaria. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos, tickets de bus, vouchers de envío, publicaciones o cualquier imagen que no sea una transacción financiera. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia|Banco\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
                         },
                         imageContent
                     }
@@ -1188,6 +1188,12 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     {
         var value = string.Join(' ', destination.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries));
         return value.Length <= 120 ? value : value[..120].TrimEnd();
+    }
+
+    private static bool IsAcceptedPaymentType(string paymentType)
+    {
+        var normalized = paymentType.Trim().ToUpperInvariant();
+        return normalized is "YAPE" or "PLIN" or "BCP" or "TRANSFERENCIA" or "BANCO" or "TRANSFERENCIA BCP" or "DEPOSITO" or "DEPÓSITO";
     }
 
     private async Task<ProductUpdateSnapshot?> ResolveProductDetailsForUpdateAsync(int? productId, int quantity, int? companyId, CancellationToken cancellationToken)
