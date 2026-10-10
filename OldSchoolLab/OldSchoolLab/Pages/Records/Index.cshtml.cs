@@ -271,7 +271,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             .ToListAsync();
 
         var csv = new StringBuilder();
-        csv.AppendLine(PhoneCsvRow("Celular", "Nombre", "Estado"));
+        csv.AppendLine(PhoneCsvRow("Telefono", "Nombre", "Estado"));
         foreach (var record in records)
         {
             csv.AppendLine(PhoneCsvRow(record.Cellphone, record.NameOrReference, record.Status));
@@ -424,7 +424,7 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine(CsvRow("Estado", "Fecha", "Celular", "Nombre / Ref WA", "Actividad",
+        sb.AppendLine(CsvRow("Estado", "Fecha", "Telefono", "Nombre / Ref WA", "Actividad",
             "DNI", "Producto", "Cantidad", "Valor", "Pagado", "Debe",
             "Pagos activos", "\u00daltimo pago", "Ruta carpeta", "Usuario"));
 
