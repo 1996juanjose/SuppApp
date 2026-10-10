@@ -180,6 +180,7 @@
         <button type="submit" class="btn btn-outline-primary">Filtrar</button>
         <button type="button" id="btnExportFiltered" class="btn btn-success">Exportar filtrados (.csv)</button>
         <button type="button" id="btnExportProspects" class="btn btn-warning">Exportar prospectos (.csv)</button>
+        <button type="button" id="btnExportForPhone" class="btn btn-outline-success">Exportar para celular (.csv)</button>
     </div>
 </form>
 
@@ -712,7 +713,13 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                 var params = new URLSearchParams();
                 params.set('handler', handler);
                 form.querySelectorAll('select, input').forEach(function (el) {
-                    if (el.name && el.value) params.set(el.name, el.value);
+                    if (el.name && el.value) {
+                        if (el.name === 'StatusIds') {
+                            params.append(el.name, el.value);
+                        } else {
+                            params.set(el.name, el.value);
+                        }
+                    }
                 });
                 return '/Records?' + params.toString();
             }
@@ -728,6 +735,13 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
             if (btnProspects) {
                 btnProspects.addEventListener('click', function () {
                     window.location.href = buildExportUrl('ExportProspects');
+                });
+            }
+
+            var btnForPhone = document.getElementById('btnExportForPhone');
+            if (btnForPhone) {
+                btnForPhone.addEventListener('click', function () {
+                    window.location.href = buildExportUrl('ExportForPhone');
                 });
             }
         })();

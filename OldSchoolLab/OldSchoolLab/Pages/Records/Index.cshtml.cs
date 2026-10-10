@@ -262,6 +262,25 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             "Registros filtrados");
     }
 
+    public async Task<IActionResult> OnGetExportForPhoneAsync()
+    {
+        var records = await BuildFilteredRecordsQuery()
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Select(x => new { x.Cellphone, x.NameOrReference, Status = x.StatusCatalog.Name })
+            .ToListAsync();
+
+        var csv = new StringBuilder();
+        csv.AppendLine(PhoneCsvRow("Celular", "Nombre", "Estado"));
+        foreach (var record in records)
+        {
+            csv.AppendLine(PhoneCsvRow(record.Cellphone, record.NameOrReference, record.Status));
+        }
+
+        var bytes = new byte[] { 0xEF, 0xBB, 0xBF }.Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8; header=present", $"para-celular-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+    }
+
     public async Task<IActionResult> OnGetExportProspectsAsync()
     {
         var companyId = User.GetCompanyId();
@@ -312,6 +331,15 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             x.ChangedByUserName,
             ChangedAt = x.ChangedAt.ToString("yyyy-MM-dd HH:mm:ss"),
             x.Details
+        }));
+    }
+
+    private static string PhoneCsvRow(params string[] fields)
+    {
+        return string.Join(";", fields.Select(f =>
+        {
+            var v = (f ?? string.Empty).Replace("\"", "\"\"");
+            return v.IndexOfAny(new[] { ';', '"', '\n', '\r' }) >= 0 ? $"\"{v}\"" : v;
         }));
     }
 
