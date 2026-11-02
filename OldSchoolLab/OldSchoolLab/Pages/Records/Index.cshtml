@@ -19,7 +19,7 @@
                     }
                     @if (Model.CollectionAlerts.Count > 0)
                     {
-                        <span> @Model.CollectionAlerts.Count registro(s) con 7 d›as o mﬂs desde el ∑ltimo pago.</span>
+                        <span> @Model.CollectionAlerts.Count registro(s) con 7 d√ùas o m√üs desde el ¬∑ltimo pago.</span>
                     }
                 </div>
             </div>
@@ -72,7 +72,7 @@
                     @if (Model.EarlyCollectionAlerts.Count > 0)
                     {
                         <div class="mb-4">
-                            <div class="fw-semibold mb-2">Empezar a cobrar lo restante (3 d›as o mﬂs)</div>
+                            <div class="fw-semibold mb-2">Empezar a cobrar lo restante (3 d√ùas o m√üs)</div>
                             <div class="list-group small">
                                 @foreach (var item in Model.EarlyCollectionAlerts)
                                 {
@@ -83,7 +83,7 @@
                                         </div>
                                         <div class="text-end small">
                                             <div>@item.AlertType</div>
-                                            <div>@item.DaysSinceLastPayment d›a(s)</div>
+                                            <div>@item.DaysSinceLastPayment d√ùa(s)</div>
                                             <div>S/ @item.BalanceDue.ToString("0.00")</div>
                                         </div>
                                     </a>
@@ -95,7 +95,7 @@
                     @if (Model.CollectionAlerts.Count > 0)
                     {
                         <div class="mb-4">
-                            <div class="fw-semibold mb-2">Cobranza fuerte (7 d›as o mﬂs)</div>
+                            <div class="fw-semibold mb-2">Cobranza fuerte (7 d√ùas o m√üs)</div>
                             <div class="list-group small">
                                 @foreach (var item in Model.CollectionAlerts)
                                 {
@@ -106,7 +106,7 @@
                                         </div>
                                         <div class="text-end small">
                                             <div>@item.AlertType</div>
-                                            <div>@item.DaysSinceLastPayment d›a(s)</div>
+                                            <div>@item.DaysSinceLastPayment d√ùa(s)</div>
                                             <div>S/ @item.BalanceDue.ToString("0.00")</div>
                                         </div>
                                     </a>
@@ -208,11 +208,11 @@
                 <div class="small">
                     @if (Model.DueCallReminders.Count > 0)
                     {
-                        <span>Se detectaron @Model.DueCallReminders.Count llamada(s) vencida(s) en los ∑ltimos 21 d›as.</span>
+                        <span>Se detectaron @Model.DueCallReminders.Count llamada(s) vencida(s) en los ¬∑ltimos 21 d√ùas.</span>
                     }
                     @if (Model.UpcomingCallReminders.Count > 0)
                     {
-                        <span> Hay @Model.UpcomingCallReminders.Count llamada(s) præxima(s) en los siguientes 5 minutos.</span>
+                        <span> Hay @Model.UpcomingCallReminders.Count llamada(s) pr¬æxima(s) en los siguientes 5 minutos.</span>
                     }
                 </div>
             </div>
@@ -268,7 +268,7 @@
                     @if (Model.UpcomingCallReminders.Count > 0)
                     {
                         <div>
-                            <div class="fw-semibold mb-2">Llamadas præximas en 5 minutos</div>
+                            <div class="fw-semibold mb-2">Llamadas pr¬æximas en 5 minutos</div>
                             <div class="list-group small">
                                 @foreach (var call in Model.UpcomingCallReminders)
                                 {
@@ -330,7 +330,7 @@
                 <th>Ult. pago</th>
                 <th>Destino</th>
                 <th>Ruta carpeta</th>
-                <th>Impresiæn</th>
+                <th>Impresi¬æn</th>
                 <th>Codigo</th>
                 <th>Nro orden</th>
                 <th>Usuario</th>
@@ -473,7 +473,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                +Estﬂs seguro de eliminar el registro de <strong id="deleteCelular"></strong>? Esta acciæn no se puede deshacer y se eliminarﬂn todos los pagos asociados.
+                +Est√üs seguro de eliminar el registro de <strong id="deleteCelular"></strong>? Esta acci¬æn no se puede deshacer y se eliminar√ün todos los pagos asociados.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -497,7 +497,7 @@
                 <img id="paymentImagePreview" src="" alt="Comprobante" class="img-fluid rounded" />
             </div>
             <div class="modal-footer">
-                <a id="paymentImageOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pesta±a</a>
+                <a id="paymentImageOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pesta¬±a</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
@@ -519,7 +519,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
             const id = btn.dataset.id;
             const celular = btn.dataset.celular;
 
-            document.getElementById('paymentsModalLabel').textContent = `Pagos ¿ Celular: ${celular}`;
+            document.getElementById('paymentsModalLabel').textContent = `Pagos - Celular: ${celular}`;
             document.getElementById('paymentsModalBody').innerHTML =
                 '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
 
@@ -572,7 +572,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                         <tr>
                             <th>Fecha pago</th>
                             <th>Registrado</th>
-                            <th>Cod. operaciæn</th>
+                            <th>C√≥d. operaci√≥n</th>
                             <th>Monto</th>
                             <th>Estado</th>
                             <th>Usuario</th>
@@ -743,7 +743,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                 const id = btn.dataset.id;
                 const celular = btn.dataset.celular;
 
-                document.getElementById('auditModalLabel').textContent = `Historial ¿ Celular: ${celular}`;
+                document.getElementById('auditModalLabel').textContent = `Historial √Ä Celular: ${celular}`;
                 document.getElementById('auditModalBody').innerHTML =
                     '<div class="text-center py-3"><div class="spinner-border text-primary" role="status"></div></div>';
 

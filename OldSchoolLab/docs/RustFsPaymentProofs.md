@@ -37,6 +37,16 @@ Alternativamente, sin OpenBao, configurar `ObjectStorage__Enabled=true`,
 
 Sin `ObjectStorage__Enabled=true`, se conserva el almacenamiento anterior.
 
+## Desarrollo local
+
+Web y API declaran el mismo `UserSecretsId`: `oldschoollab-storage-development`.
+En el perfil Development, ASP.NET carga automaticamente las claves de ese almacen
+local, fuera del repositorio. Alli se configuran `ObjectStorage:Enabled=true`
+y las siete opciones `OpenBao` indicadas arriba, reutilizando balistica.
+Reiniciar ambos proyectos despues de cambiar estos valores para recargar las
+credenciales desde OpenBao. No basta con habilitar RustFS solo en la API:
+la web tambien firma las URLs que usa el visor de comprobantes.
+
 ## Lectura y compatibilidad
 
 Se guarda una ruta estable `/rustfs-payment-proofs/{identificador}.jpg` (o png/webp)
