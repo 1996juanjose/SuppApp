@@ -177,7 +177,9 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
     public class CreateRecordRequest
     {
-        /// <summary>N�mero de celular. Si ya existe en el sistema, no se modifica.</summary>
+        public int? CompanyId { get; set; }
+
+        /// <summary>N�mero de celular. Se permite un nuevo registro despues de mas de 30 dias.</summary>
         public string Celular { get; set; } = string.Empty;
 
         /// <summary>Nombre del estado. Si no se env�a, se usa 'Prospecto'.</summary>
@@ -203,7 +205,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     }
 
     /// <summary>
-    /// Crea un nuevo registro. Si el celular ya existe, no lo modifica y retorna skipped=true.
+    /// Crea un nuevo registro. Reutiliza el registro durante 30 dias; despues permite una nueva compra.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRecordRequest request)
@@ -272,12 +274,21 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             query = query.Where(x => x.CreatedAt < to.Date.AddDays(1));
         }
 
+        var phones = await query.Select(x => x.Cellphone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace("+", "")).Distinct().ToListAsync(cancellationToken);
+        var purchaseHistory = await db.CustomerRecords.AsNoTracking()
+            .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+            .Where(x => phones.Contains(x.Cellphone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace("+", "")))
+            .Select(x => new OldSchool.Sales.PurchaseHistoryEntry(x.Id, x.CompanyId, x.Cellphone, x.CreatedAt)).ToListAsync(cancellationToken);
+        var purchaseNumbers = OldSchool.Sales.RepeatPurchasePolicy.GetPurchaseNumbers(purchaseHistory);
+
         var records = await query
             .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
             .Select(x => new
             {
                 x.Id,
+                purchaseNumber = purchaseNumbers.GetValueOrDefault(x.Id, 1),
+                isRepeatCustomer = purchaseNumbers.GetValueOrDefault(x.Id, 1) > 1,
                 x.StatusCatalogId,
                 x.RecordDate,
                 x.CreatedAt,
@@ -442,38 +453,44 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(celular))
             return BadRequest(new { error = "El campo Celular no tiene un formato v�lido." });
 
-        var existe = await db.CustomerRecords
-            .AsNoTracking()
-            .AnyAsync(x => x.Cellphone
-                .Replace(" ", string.Empty)
-                .Replace("-", string.Empty)
-                .Replace("(", string.Empty)
-                .Replace(")", string.Empty)
-                .Replace("+", string.Empty) == celular);
-
-        if (existe)
-        {
-            return Ok(new
-            {
-                skipped = true,
-                message = $"El celular {celular} ya est� registrado. No se realizaron cambios."
-            });
-        }
-
+        var requestedCompanyId = GetCompanyId(User) ?? request.CompanyId;
         var estadoNombre = NormalizeStatusName(request.Estado);
         var estadoNombreNormalizado = estadoNombre.ToUpperInvariant();
 
         var status = await db.Statuses
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.IsActive && x.Name.ToUpper() == estadoNombreNormalizado)
+            .FirstOrDefaultAsync(x => x.IsActive && (!requestedCompanyId.HasValue || x.CompanyId == requestedCompanyId.Value) && x.Name.ToUpper() == estadoNombreNormalizado)
             ?? await db.Statuses
                 .AsNoTracking()
-                .Where(x => x.IsActive)
+                .Where(x => x.IsActive && (!requestedCompanyId.HasValue || x.CompanyId == requestedCompanyId.Value))
                 .OrderBy(x => x.SortOrder)
                 .FirstOrDefaultAsync();
 
         if (status is null)
             return BadRequest(new { error = "No se encontr� un estado v�lido en el sistema." });
+
+        var companyId = status.CompanyId;
+        var now = AppClock.Now(config);
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+        if (db.Database.IsNpgsql())
+        {
+            var lockKey = $"repeat-purchase:{companyId}:{celular}";
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))");
+        }
+        var history = await db.CustomerRecords.AsNoTracking()
+            .Where(x => x.CompanyId == companyId && x.Cellphone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace("+", "") == celular)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => new OldSchool.Sales.PurchaseHistoryEntry(x.Id, x.CompanyId, x.Cellphone, x.CreatedAt))
+            .ToListAsync();
+        var previous = history.FirstOrDefault();
+        var numbers = OldSchool.Sales.RepeatPurchasePolicy.GetPurchaseNumbers(history);
+        var purchaseNumber = previous is null ? 1 : numbers[previous.Id] + 1;
+        if (previous is not null && !OldSchool.Sales.RepeatPurchasePolicy.CanCreateNext(previous.CreatedAt, now))
+        {
+            return Ok(new { skipped = true, id = previous.Id, purchaseNumber = numbers[previous.Id],
+                canCreateAfter = previous.CreatedAt.AddDays(30),
+                message = "El celular ya tiene un registro en los ultimos 30 dias. No se realizaron cambios." });
+        }
 
         var fecha = AppClock.Today(config);
         if (!string.IsNullOrWhiteSpace(request.AutoCont)
@@ -493,7 +510,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             var producto = await db.Products
                 .AsNoTracking()
                 .Include(x => x.Prices)
-                .FirstOrDefaultAsync(x => x.IsActive && x.Name.ToUpper() == productoNombreNormalizado);
+                .FirstOrDefaultAsync(x => x.IsActive && x.CompanyId == companyId && x.Name.ToUpper() == productoNombreNormalizado);
 
             if (producto is not null)
             {
@@ -510,7 +527,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             StatusCatalogId = status.Id,
             CompanyId = status.CompanyId,
             RecordDate = fecha,
-            CreatedAt = AppClock.Now(config),
+            CreatedAt = now,
             Cellphone = celular,
             NameOrReference = request.Nombre?.Trim() ?? string.Empty,
             CallActivity = request.ActividadLlamada?.Trim() ?? string.Empty,
@@ -527,10 +544,21 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
         db.CustomerRecords.Add(record);
         await db.SaveChangesAsync();
+        if (paidAmount > 0)
+        {
+            db.CustomerRecordPayments.Add(new CustomerRecordPayment {
+                CustomerRecordId = record.Id, Amount = paidAmount, PaymentDate = fecha,
+                CreatedAt = now, CreatedByUserId = createdByUserId, CreatedByUserName = createdByUserName
+            });
+            await db.SaveChangesAsync();
+        }
+        if (transaction is not null) await transaction.CommitAsync();
 
         return StatusCode(201, new
         {
             skipped = false,
+            purchaseNumber,
+            isRepeatCustomer = purchaseNumber > 1,
             id = record.Id,
             celular = record.Cellphone,
             estado = status.Name,
@@ -542,6 +570,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
     public class ProcessPaymentRequest
     {
+        public int? CompanyId { get; set; }
+
         /// <summary>Celular del remitente (enviado por n8n desde WhatsApp).</summary>
         public string Celular { get; set; } = string.Empty;
 
@@ -554,6 +584,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
     public class ProcessShipmentRequest
     {
+        public int? CompanyId { get; set; }
+
         /// <summary>Celular del destinatario o remitente para localizar el registro.</summary>
         public string Celular { get; set; } = string.Empty;
 
@@ -566,6 +598,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
 
     public class ProcessTextRequest
     {
+        public int? CompanyId { get; set; }
+
         /// <summary>Mensaje de texto libre a interpretar con IA.</summary>
         public string Message { get; set; } = string.Empty;
 
@@ -624,13 +658,17 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         var celular = NormalizeCellphone(request.Celular);
 
         // Buscar el registro por celular
+        var lookupCompanyId = GetCompanyId(User) ?? request.CompanyId;
         var record = await db.CustomerRecords
-            .FirstOrDefaultAsync(x => x.Cellphone
+            .Where(x => x.Cellphone
                 .Replace(" ", string.Empty)
                 .Replace("-", string.Empty)
                 .Replace("(", string.Empty)
                 .Replace(")", string.Empty)
-                .Replace("+", string.Empty) == celular);
+                .Replace("+", string.Empty) == celular)
+            .Where(x => !lookupCompanyId.HasValue || x.CompanyId == lookupCompanyId.Value)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
 
         if (record is null)
             return NotFound(new { error = $"No se encontr� un registro para el celular {celular}." });
@@ -738,13 +776,17 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             return BadRequest(new { error = "Se requiere ImageBase64." });
 
         var celular = NormalizeCellphone(request.Celular);
+        var lookupCompanyId = GetCompanyId(User) ?? request.CompanyId;
         var record = await db.CustomerRecords
-            .FirstOrDefaultAsync(x => x.Cellphone
+            .Where(x => x.Cellphone
                 .Replace(" ", string.Empty)
                 .Replace("-", string.Empty)
                 .Replace("(", string.Empty)
                 .Replace(")", string.Empty)
-                .Replace("+", string.Empty) == celular);
+                .Replace("+", string.Empty) == celular)
+            .Where(x => !lookupCompanyId.HasValue || x.CompanyId == lookupCompanyId.Value)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
 
         if (record is null)
             return NotFound(new { error = $"No se encontr� un registro para el celular {celular}." });
@@ -854,13 +896,17 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(celular))
             return BadRequest(new { error = "No se detect� un celular v�lido en el mensaje." });
 
+        var lookupCompanyId = GetCompanyId(User) ?? request.CompanyId;
         var record = await db.CustomerRecords
-            .FirstOrDefaultAsync(x => x.Cellphone
+            .Where(x => x.Cellphone
                 .Replace(" ", string.Empty)
                 .Replace("-", string.Empty)
                 .Replace("(", string.Empty)
                 .Replace(")", string.Empty)
-                .Replace("+", string.Empty) == celular);
+                .Replace("+", string.Empty) == celular)
+            .Where(x => !lookupCompanyId.HasValue || x.CompanyId == lookupCompanyId.Value)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
 
         if (record is null)
             return NotFound(new { error = $"No se encontr� un registro para el celular {celular}." });

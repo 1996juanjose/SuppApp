@@ -1,0 +1,58 @@
+@page
+@model OldSchoolLab.Pages.Cash.IndexModel
+@{ ViewData["Title"] = "Caja"; }
+<div class="records-heading d-flex justify-content-between align-items-center">
+    <div><div class="page-eyebrow">CONTROL FINANCIERO</div><h1 class="h3">Caja</h1><p class="text-muted mb-0">Ingresos, extornos y gastos dentro de cada período de apertura.</p></div>
+    @if (Model.CanManage)
+    {
+        @if (Model.Current is null)
+        {
+            <form method="post" asp-page-handler="Open"><button class="btn btn-primary" type="submit">Abrir caja</button></form>
+        }
+        else
+        {
+            <form method="post" asp-page-handler="Close" asp-route-id="@Model.Current.Id" onsubmit="return confirm('¿Cerrar la caja actual? No se podrán añadir gastos a esta caja.');"><button class="btn btn-outline-danger" type="submit">Cerrar caja #@Model.Current.Id</button></form>
+        }
+    }
+</div>
+@if (TempData["CashMessage"] is string message) { <div class="alert alert-success" role="status">@message</div> }
+@if (TempData["CashError"] is string error) { <div class="alert alert-danger" role="alert">@error</div> }
+@if (Model.Current is null) { <div class="alert alert-light border">No hay una caja abierta. Solo el usuario ADMIN puede abrir una.</div> }
+@if (Model.Selected is { } box)
+{
+    <div class="card mb-4"><div class="card-body d-flex justify-content-between gap-3 flex-wrap">
+        <div><strong>Caja #@box.Id</strong> <span class="badge @(box.ClosedAt.HasValue ? "text-bg-secondary" : "text-bg-success")">@(box.ClosedAt.HasValue ? "Cerrada" : "Abierta")</span><div class="small text-muted mt-2">Abierta: @box.OpenedAt.ToString("dd/MM/yyyy HH:mm:ss") · @box.OpenedByUserName</div>
+        @if (box.ClosedAt.HasValue) { <div class="small text-muted">Cerrada: @box.ClosedAt.Value.ToString("dd/MM/yyyy HH:mm:ss") · @box.ClosedByUserName</div> }</div>
+        <div class="small text-muted align-self-center">@Model.Totals.PaymentCount pagos registrados · PEN</div>
+    </div></div>
+    <section class="records-metrics" aria-label="Resumen de caja">
+        <div class="metric-card metric-paid"><div><div class="metric-label">Ingresos registrados</div><div class="metric-value">S/ @Model.Totals.Income.ToString("0.00")</div></div></div>
+        <div class="metric-card metric-due"><div><div class="metric-label">Gastos</div><div class="metric-value">S/ @Model.Totals.Expenses.ToString("0.00")</div></div></div>
+        <div class="metric-card"><div><div class="metric-label">Extornos</div><div class="metric-value">S/ @Model.Totals.Reversals.ToString("0.00")</div></div></div>
+        <div class="metric-card metric-orders"><div><div class="metric-label">Saldo neto</div><div class="metric-value">S/ @Model.Totals.Net.ToString("0.00")</div></div></div>
+    </section>
+    <p class="small text-muted">Saldo = ingresos − extornos − gastos. Los movimientos se agrupan por la hora de registro en el sistema, no por la fecha del voucher. Hora de Perú.</p>
+    @if (!box.ClosedAt.HasValue && Model.CanAddExpense)
+    {
+        <form method="post" asp-page-handler="Expense" class="card mb-4"><div class="card-body p-4">
+            <h2 class="h6 mb-3">Registrar gasto</h2>
+            <div asp-validation-summary="All" class="text-danger small" role="alert"></div>
+            <input type="hidden" asp-for="Input.BoxId" value="@box.Id" />
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4"><label asp-for="Input.Name" class="form-label">Concepto</label><input asp-for="Input.Name" class="form-control" maxlength="120" placeholder="Ej. Movilidad, embalaje…" required /></div>
+                <div class="col-md-2"><label asp-for="Input.Amount" class="form-label">Monto (S/)</label><input asp-for="Input.Amount" type="number" class="form-control" min="0.01" max="99999999.99" step="0.01" required /></div>
+                <div class="col-md-4"><label asp-for="Input.Notes" class="form-label">Detalle opcional</label><input asp-for="Input.Notes" class="form-control" maxlength="250" /></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Guardar gasto</button></div>
+            </div>
+        </div></form>
+    }
+    <section class="records-table-card mb-4"><div class="records-table-heading"><h2>Gastos del período</h2><span>Últimos 100 movimientos</span></div><div class="table-responsive"><table class="table records-table"><thead><tr><th>Registrado</th><th>Concepto</th><th>Monto</th><th>Detalle</th><th>Usuario</th></tr></thead><tbody>
+    @foreach (var expense in Model.Expenses) { <tr><td>@expense.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td><td>@expense.Name</td><td class="amount-due">S/ @expense.Amount.ToString("0.00")</td><td>@expense.Notes</td><td>@expense.CreatedByUserName</td></tr> }
+    @if (Model.Expenses.Count == 0) { <tr><td colspan="5" class="text-center text-muted">Sin gastos registrados en este período.</td></tr> }
+    </tbody></table></div></section>
+}
+<section class="records-table-card"><div class="records-table-heading"><h2>Historial de cajas</h2><span>Últimas 30 cajas de tu empresa</span></div><div class="table-responsive"><table class="table records-table"><thead><tr><th>Caja</th><th>Apertura</th><th>Abierta por</th><th>Cierre</th><th>Cerrada por</th><th></th></tr></thead><tbody>
+@foreach (var item in Model.History) { <tr><td>#@item.Id</td><td>@item.OpenedAt.ToString("dd/MM/yyyy HH:mm")</td><td>@item.OpenedByUserName</td><td>@(item.ClosedAt?.ToString("dd/MM/yyyy HH:mm") ?? "Abierta")</td><td>@item.ClosedByUserName</td><td><a asp-page="/Cash/Index" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Ver resumen</a></td></tr> }
+@if (Model.History.Count == 0) { <tr><td colspan="6" class="text-center text-muted">Todavía no se abrió ninguna caja.</td></tr> }
+</tbody></table></div></section>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -12,7 +12,7 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 namespace OldSchoolLab.Pages.Records;
 
 [Authorize]
-public class IndexModel(ApplicationDbContext db) : PageModel
+public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : PageModel
 {
     public IList<CustomerRecord> Records { get; private set; } = new List<CustomerRecord>();
     public IList<StatusCatalog> Statuses { get; private set; } = new List<StatusCatalog>();
@@ -39,6 +39,9 @@ public class IndexModel(ApplicationDbContext db) : PageModel
     public decimal TotalPaidAmount { get; private set; }
     public decimal TotalBalanceDue { get; private set; }
     public int TotalFilteredRecords { get; private set; }
+    public IReadOnlyDictionary<int, int> PurchaseNumbers { get; private set; } = new Dictionary<int, int>();
+    public CashRegister? OpenCashRegister { get; private set; }
+    public CashTotals? CurrentCashTotals { get; private set; }
 
     public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor") || User.IsInRole("Vendedor");
     public bool CanDelete => User.IsInRole("Gerencia");
@@ -54,6 +57,11 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             : printDayRaw.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.TryParse(x, out var id) ? id : 0).Count(x => x > 0);
         var today = DateTime.Today;
         var companyId = User.GetCompanyId();
+        if (companyId.HasValue)
+        {
+            OpenCashRegister = await cash.GetOpenAsync(companyId.Value);
+            if (OpenCashRegister is not null) CurrentCashTotals = await cash.GetTotalsAsync(OpenCashRegister);
+        }
         var query = BuildFilteredRecordsQuery();
         var now = DateTime.Now;
 
@@ -177,6 +185,16 @@ public class IndexModel(ApplicationDbContext db) : PageModel
             .ToListAsync();
 
         TotalFilteredRecords = Records.Count;
+        var visiblePhones = Records.Select(x => OldSchool.Sales.RepeatPurchasePolicy.NormalizePhone(x.Cellphone)).Distinct().ToList();
+        if (visiblePhones.Count > 0)
+        {
+            var history = await db.CustomerRecords.AsNoTracking()
+                .Where(x => !companyId.HasValue || x.CompanyId == companyId.Value)
+                .Where(x => visiblePhones.Contains(x.Cellphone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace("+", "")))
+                .Select(x => new OldSchool.Sales.PurchaseHistoryEntry(x.Id, x.CompanyId, x.Cellphone, x.CreatedAt))
+                .ToListAsync();
+            PurchaseNumbers = OldSchool.Sales.RepeatPurchasePolicy.GetPurchaseNumbers(history);
+        }
         TotalPaidAmount = Records.Sum(x => x.ActivePaidAmount);
         TotalBalanceDue = Records
             .Where(x => x.StatusCatalog.Name == "Clientes" || x.StatusCatalog.Name == "Por Pagar")

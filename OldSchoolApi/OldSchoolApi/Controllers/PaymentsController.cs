@@ -16,6 +16,8 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
 {
     public class ProcessVoucherRequest
     {
+        public int? CompanyId { get; set; }
+
         /// <summary>N�mero de celular del remitente (quien envi� el voucher por WhatsApp).</summary>
         public string Celular { get; set; } = string.Empty;
 
@@ -56,13 +58,17 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
             return BadRequest(new ProcessVoucherResponse { Message = "Celular no v�lido." });
 
         // Buscar el registro del cliente por celular
+        var lookupCompanyId = int.TryParse(User.FindFirst("company_id")?.Value, out var userCompanyId) ? userCompanyId : request.CompanyId;
         var record = await db.CustomerRecords
-            .FirstOrDefaultAsync(x => x.Cellphone
+            .Where(x => x.Cellphone
                 .Replace(" ", string.Empty)
                 .Replace("-", string.Empty)
                 .Replace("(", string.Empty)
                 .Replace(")", string.Empty)
-                .Replace("+", string.Empty) == celular);
+                .Replace("+", string.Empty) == celular)
+            .Where(x => !lookupCompanyId.HasValue || x.CompanyId == lookupCompanyId.Value)
+            .OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .FirstOrDefaultAsync();
 
         if (record is null)
             return NotFound(new ProcessVoucherResponse { Message = $"No se encontr� un registro con el celular {celular}." });

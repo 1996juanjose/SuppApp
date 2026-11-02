@@ -24,6 +24,10 @@
                 </button>
                 <div id="mainNavigation" class="navbar-collapse collapse justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
+                        @if (User.Identity?.IsAuthenticated == true && User.GetCompanyId().HasValue)
+                        {
+                            <li class="nav-item"><a class="nav-link @(currentPage.StartsWith("/Cash") ? "active" : "")" asp-page="/Cash/Index">Caja</a></li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link @(currentPage.StartsWith("/Records", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Records/Index">Registros</a>
                         </li>

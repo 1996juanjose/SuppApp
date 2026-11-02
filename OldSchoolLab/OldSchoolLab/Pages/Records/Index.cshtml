@@ -6,6 +6,10 @@
 }
 
 <div class="records-workspace">
+@if (Model.OpenCashRegister is { } currentCash && Model.CurrentCashTotals is { } cashTotals)
+{
+    <div class="cash-panel mb-4"><div><span class="cash-live-dot" aria-hidden="true"></span><strong>Caja #@currentCash.Id abierta</strong><span class="small text-muted ms-2">Desde @currentCash.OpenedAt.ToString("dd/MM HH:mm") · @currentCash.OpenedByUserName</span></div><div class="d-flex gap-3 align-items-center flex-wrap"><span class="small">Ingresos <strong>S/ @cashTotals.Income.ToString("0.00")</strong></span><span class="small">Gastos <strong>S/ @cashTotals.Expenses.ToString("0.00")</strong></span><span>Saldo <strong>S/ @cashTotals.Net.ToString("0.00")</strong></span><a asp-page="/Cash/Index" class="btn btn-sm btn-outline-primary">Ver caja</a></div></div>
+}
 @* @if (Model.EarlyCollectionAlerts.Count > 0 || Model.CollectionAlerts.Count > 0)
 {
     <div class="alert alert-danger shadow-sm mb-4">
@@ -368,7 +372,13 @@
                     }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
                     <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td class="record-phone">@item.Cellphone</td>
+                    <td class="record-phone">
+                        <div>@item.Cellphone</div>
+                        @if (Model.PurchaseNumbers.TryGetValue(item.Id, out var purchaseNumber) && purchaseNumber > 1)
+                        {
+                            <span class="repeat-purchase-badge" title="Nuevo registro después de más de 30 días desde el anterior">@(purchaseNumber).ª compra</span>
+                        }
+                    </td>
                     <td class="text-truncate" style="max-width:120px" title="@item.NameOrReference">@item.NameOrReference</td>
                     <td class="text-truncate" style="max-width:150px" title="@item.CallActivity">@item.CallActivity</td>
                     <td>@item.Dni</td>

@@ -46,6 +46,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<CashRegisterService>();
 builder.Services.AddScoped<IPaymentProofStorage, PaymentProofStorage>();
 builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
 builder.Services.AddScoped<ChatApiClient>();

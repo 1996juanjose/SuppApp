@@ -7,6 +7,7 @@ public class Expense
     public int Id { get; set; }
 
     public int CompanyId { get; set; }
+    public int? CashRegisterId { get; set; }
 
     public Company Company { get; set; } = default!;
 
