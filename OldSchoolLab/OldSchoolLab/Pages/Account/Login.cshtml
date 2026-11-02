@@ -1,51 +1,63 @@
 @page
 @model OldSchoolLab.Pages.Account.LoginModel
 @{
-    ViewData["Title"] = "Iniciar sesion";
+    ViewData["Title"] = "Iniciar sesión";
 }
-
-<div class="row justify-content-center">
-    <div class="col-md-5 col-lg-4">
-        <div class="card shadow-sm mt-5">
-            <div class="card-body p-4">
-                <h1 class="h4 text-center mb-4">Iniciar sesion</h1>
-
-                <form method="post">
-                    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.CompanyKey" class="form-label"></label>
-                        <select asp-for="Input.CompanyKey" asp-items="Model.CompanyOptions" class="form-select">
-                            <option value="">Seleccione</option>
-                        </select>
-                        <span asp-validation-for="Input.CompanyKey" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.UserName" class="form-label"></label>
-                        <input asp-for="Input.UserName" class="form-control" />
-                        <span asp-validation-for="Input.UserName" class="text-danger"></span>
-                    </div>
-
-                    <div class="mb-3">
-                        <label asp-for="Input.Password" class="form-label"></label>
-                        <input asp-for="Input.Password" class="form-control" />
-                        <span asp-validation-for="Input.Password" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-check mb-3">
-                        <input asp-for="Input.RememberMe" class="form-check-input" />
-                        <label asp-for="Input.RememberMe" class="form-check-label"></label>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100">Entrar</button>
-                </form>
-            </div>
+<div class="login-shell">
+    <section class="login-intro" aria-labelledby="welcome-title">
+        <div class="login-kicker"><span></span> TU ESPACIO DE TRABAJO</div>
+        <h1 id="welcome-title">Todo tu negocio.<br /><span>En un solo lugar.</span></h1>
+        <p>Organiza tus pedidos, acompaña a tus clientes y mantén el control de tus ventas con OldSchoolLab.</p>
+        <div class="login-illustration" aria-hidden="true">
+            <div class="illustration-top"><span class="illustration-logo">O</span><span>Resumen comercial</span><span class="illustration-dots">•••</span></div>
+            <div class="illustration-stats"><div><span>Pedidos</span><i></i></div><div><span>Pagos</span><i></i></div><div><span>Clientes</span><i></i></div></div>
+            <div class="illustration-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="illustration-row"><span></span><i></i><b></b></div><div class="illustration-row"><span></span><i></i><b></b></div>
+            <div class="illustration-note"><span>✓</span> Todo en orden, todo conectado</div>
         </div>
-    </div>
+        <div class="login-intro-caption">PEDIDOS &nbsp; / &nbsp; CLIENTES &nbsp; / &nbsp; VENTAS</div>
+    </section>
+    <section class="login-panel" aria-labelledby="login-title">
+        <div class="login-panel-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/></svg></div>
+        <div class="page-eyebrow">BIENVENIDO A OLDSCHOOLLAB</div>
+        <h2 id="login-title">Inicia sesión</h2>
+        <p class="login-description">Ingresa a tu empresa y continúa donde lo dejaste.</p>
+        <form method="post" class="login-form">
+            <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
+            <div class="mb-4">
+                <label asp-for="Input.CompanyKey" class="form-label">Empresa</label>
+                <select asp-for="Input.CompanyKey" asp-items="Model.CompanyOptions" class="form-select" autocomplete="organization" required><option value="">Selecciona tu empresa</option></select>
+                <span asp-validation-for="Input.CompanyKey" class="text-danger"></span>
+            </div>
+            <div class="mb-4">
+                <label asp-for="Input.UserName" class="form-label">Usuario</label>
+                <input asp-for="Input.UserName" class="form-control" placeholder="Tu nombre de usuario" autocomplete="username" required />
+                <span asp-validation-for="Input.UserName" class="text-danger"></span>
+            </div>
+            <div class="mb-4">
+                <label asp-for="Input.Password" class="form-label">Contraseña</label>
+                <div class="password-field">
+                    <input asp-for="Input.Password" class="form-control" placeholder="Ingresa tu contraseña" autocomplete="current-password" required />
+                    <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="Input_Password" id="togglePassword"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                </div>
+                <span asp-validation-for="Input.Password" class="text-danger"></span>
+            </div>
+            <div class="form-check mb-4"><input asp-for="Input.RememberMe" class="form-check-input" /><label asp-for="Input.RememberMe" class="form-check-label">Recordarme en este dispositivo</label></div>
+            <button type="submit" class="btn btn-primary w-100 login-submit">Entrar a mi cuenta <span aria-hidden="true">&rarr;</span></button>
+        </form>
+        <div class="login-help">¿Necesitas acceso? Contacta al administrador de tu empresa.</div>
+    </section>
 </div>
-
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        document.getElementById('togglePassword').addEventListener('click', function () {
+            const input = document.getElementById('Input_Password');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            this.setAttribute('aria-pressed', String(show));
+            this.setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+        });
+    </script>
 }

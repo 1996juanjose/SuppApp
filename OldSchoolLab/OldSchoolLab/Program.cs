@@ -10,6 +10,8 @@ using System.Text.Encodings.Web;
 using System.Text.Unicode;
 
 var builder = WebApplication.CreateBuilder(args);
+await OldSchool.Storage.RustFsConfiguration.LoadAsync(builder.Configuration);
+builder.Services.AddScoped<OldSchool.Storage.RustFsPaymentProofs>();
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -125,6 +127,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
+app.MapGet(OldSchool.Storage.RustFsPaymentProofs.Route + "/{fileName}",
+    (string fileName, HttpContext context, OldSchool.Storage.RustFsPaymentProofs storage) => storage.OpenAsync(fileName, context))
+    .RequireAuthorization();
 app.MapRazorPages()
    .WithStaticAssets();
 

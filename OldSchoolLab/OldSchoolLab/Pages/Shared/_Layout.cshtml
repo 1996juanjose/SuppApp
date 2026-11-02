@@ -1,7 +1,8 @@
-﻿@using OldSchoolLab.Services
+@using OldSchoolLab.Services
+@{ var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? ""; }
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -10,50 +11,51 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/OldSchoolLab.styles.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">OldSchoolLab</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
+    <header class="app-header">
+        <nav class="navbar navbar-expand-xl navbar-light bg-white border-bottom app-navbar">
+            <div class="app-container">
+                <a class="navbar-brand" asp-area="" asp-page="/Index"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></svg></span>OldSchoolLab</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation"
+                        aria-expanded="false" aria-label="Abrir navegaci&oacute;n">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                <div id="mainNavigation" class="navbar-collapse collapse justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Records/Index">Registros</a>
+                            <a class="nav-link @(currentPage.StartsWith("/Records", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Records/Index">Registros</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Chat/Index">Chat</a>
+                            <a class="nav-link @(currentPage.StartsWith("/Chat", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Chat/Index">Chat</a>
                         </li>
                         @if (User.IsInRole("SuperAdmin"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Companies/Index">Empresas</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/Companies", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/Companies/Index">Empresas</a>
                             </li>
                         }
                         @if (User.IsInRole("Gerencia"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Products/Index">Productos</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/Products", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/Products/Index">Productos</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Addresses/Index">Direcciones</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/Addresses", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/Addresses/Index">Direcciones</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Profit/Index">Ganancias</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/Profit", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/Profit/Index">Ganancias</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/Inventory/Index">Inventario</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/Inventory", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/Inventory/Index">Inventario</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-page="/Admin/AuditLog/Index">Auditoría</a>
+                                <a class="nav-link @(currentPage.StartsWith("/Admin/AuditLog", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Admin/AuditLog/Index">Auditoría</a>
                             </li>
                         }
                     </ul>
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav app-user-nav">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
                             var companyName = User.GetCompanyName();
@@ -66,10 +68,10 @@
                                 <span class="nav-link text-muted px-0">@(string.IsNullOrWhiteSpace(companyName) ? "Sin empresa" : companyName)</span>
                             </li>
                             <li class="nav-item">
-                                <span class="nav-link text-muted">@User.Identity.Name</span>
+                                <span class="user-identity"><span class="user-avatar" aria-hidden="true">@(User.Identity.Name?.Substring(0, 1).ToUpperInvariant())</span><span>@User.Identity.Name</span></span>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-page="/Account/Logout">Salir</a>
+                                <a class="nav-link logout-link" asp-page="/Account/Logout">Salir</a>
                             </li>
                         }
                     </ul>
@@ -77,15 +79,15 @@
             </div>
         </nav>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+    <div class="app-container">
+        <main role="main" class="app-main">
             @RenderBody()
         </main>
     </div>
 
     <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - OldSchoolLab - <a asp-area="" asp-page="/Privacy">Privacy</a>
+        <div class="app-container">
+            &copy; 2026 - OldSchoolLab - <a asp-area="" asp-page="/Privacy">Privacidad</a>
         </div>
     </footer>
 

@@ -8,6 +8,8 @@ using System.Text;
 using OldSchoolApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+await OldSchool.Storage.RustFsConfiguration.LoadAsync(builder.Configuration);
+builder.Services.AddScoped<OldSchool.Storage.RustFsPaymentProofs>();
 
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
@@ -139,6 +141,9 @@ app.MapGet("/time", (IConfiguration config) =>
 });
 
 app.MapControllers();
+app.MapGet(OldSchool.Storage.RustFsPaymentProofs.Route + "/{fileName}",
+    (string fileName, HttpContext context, OldSchool.Storage.RustFsPaymentProofs storage) => storage.OpenAsync(fileName, context))
+    .RequireAuthorization();
 
 app.MapGet("/api/records/calls/summary", async (ApiDbContext db, int? companyId, CancellationToken cancellationToken) =>
 {

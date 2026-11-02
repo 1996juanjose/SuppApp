@@ -15,7 +15,7 @@ namespace OldSchoolApi.Controllers;
 [ApiController]
 [Route("api/records")]
 [Authorize]
-public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory) : ControllerBase
+public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, OldSchool.Storage.RustFsPaymentProofs rustFs) : ControllerBase
 {
     public class UpdateRecordRequest
     {
@@ -666,6 +666,23 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             ? parsedDate
             : AppClock.Today(config);
 
+        var proofPath = request.ImageUrl ?? string.Empty;
+        if (rustFs.Enabled)
+        {
+            try
+            {
+                var base64 = request.ImageBase64.Trim();
+                var marker = base64.IndexOf(";base64,", StringComparison.OrdinalIgnoreCase);
+                if (marker >= 0) base64 = base64[(marker + 8)..];
+                var bytes = Convert.FromBase64String(base64);
+                var extension = bytes.Length >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 ? "png"
+                    : bytes.Length >= 12 && Encoding.ASCII.GetString(bytes, 8, 4) == "WEBP" ? "webp" : "jpg";
+                proofPath = await rustFs.SaveAsync(bytes, extension, HttpContext.RequestAborted);
+            }
+            catch (FormatException) { return BadRequest(new { error = "La imagen Base64 no es valida." }); }
+            catch (InvalidOperationException ex) { return StatusCode(503, new { error = ex.Message }); }
+        }
+
         // Registrar el pago
         db.CustomerRecordPayments.Add(new CustomerRecordPayment
         {
@@ -673,8 +690,8 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
             Amount = paymentData.Amount,
             PaymentDate = paymentDate,
             CreatedAt = AppClock.Now(config),
-            ProofImagePath = request.ImageUrl ?? string.Empty,
-            ProofFileName = string.Empty,
+            ProofImagePath = proofPath,
+            ProofFileName = rustFs.Enabled ? Path.GetFileName(proofPath) : string.Empty,
             CreatedByUserId = "n8n",
             CreatedByUserName = "n8n"
         });

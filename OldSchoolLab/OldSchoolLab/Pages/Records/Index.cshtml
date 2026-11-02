@@ -2,9 +2,10 @@
 @model OldSchoolLab.Pages.Records.IndexModel
 @{
     ViewData["Title"] = "Registros";
-    int totalCols = 16 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
+    int totalCols = 19 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
 }
 
+<div class="records-workspace">
 @* @if (Model.EarlyCollectionAlerts.Count > 0 || Model.CollectionAlerts.Count > 0)
 {
     <div class="alert alert-danger shadow-sm mb-4">
@@ -22,23 +23,24 @@
                     }
                 </div>
             </div>
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
                 Cobranzas
             </button>
         </div>
     </div>
 } *@
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="records-heading d-flex justify-content-between align-items-center mb-3">
     <div>
-        <h1 class="h3 mb-0">Registros</h1>
-        <p class="text-muted mb-0">Mantenimiento del Excel en web.</p>
+        <div class="page-eyebrow">GESTI&Oacute;N COMERCIAL</div>
+        <h1 class="h3 mb-0">Registros de Pedidos &amp; Ventas</h1>
+        <p class="text-muted mb-0">Tu base comercial y el seguimiento de tus clientes, en un solo lugar.</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="records-actions d-flex gap-2 align-items-center">
         @if (Model.CanEdit)
         {
-            <a asp-page="/Records/Create" class="btn btn-primary">Nuevo registro</a>
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
+            <a asp-page="/Records/Create" class="btn btn-primary"><span aria-hidden="true">+</span> Nuevo registro</a>
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#collectionAlertModal">
                 Cobranzas
             </button>
         }
@@ -124,8 +126,16 @@
 
 <div id="callReminderMeta" data-next-call-scheduled-at="@(Model.NextCallScheduledAt?.ToString("O") ?? string.Empty)" class="d-none"></div>
 
-<form method="get" class="card shadow-sm mb-4">
+<section class="records-metrics" aria-label="Resumen de registros filtrados">
+    <div class="metric-card"><div><div class="metric-label">Registros filtrados</div><div class="metric-value">@Model.TotalFilteredRecords <span>registros</span></div></div><span class="metric-icon" aria-hidden="true">&#9638;</span></div>
+    <div class="metric-card metric-paid"><div><div class="metric-label">Suma de pagos</div><div class="metric-value">@($"S/ {Model.TotalPaidAmount:0.00}")</div></div><span class="metric-icon" aria-hidden="true">&#8599;</span></div>
+    <div class="metric-card metric-due"><div><div class="metric-label">Suma por cobrar</div><div class="metric-value">@($"S/ {Model.TotalBalanceDue:0.00}")</div></div><span class="metric-icon" aria-hidden="true">&#9719;</span></div>
+    <div class="metric-card metric-orders"><div><div class="metric-label">Valor de pedidos</div><div class="metric-value">@($"S/ {Model.Records.Sum(x => x.ProductAmount):0.00}")</div></div><span class="metric-icon" aria-hidden="true">S/</span></div>
+</section>
+
+<form method="get" class="card records-filters mb-4">
     <div class="card-body">
+        <div class="filter-heading">Filtrar registros <span>Encuentra lo que necesitas</span></div>
         <div class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Estado</label>
@@ -175,11 +185,11 @@
             </div>
         </div>
     </div>
-    <div class="card-footer d-flex flex-wrap justify-content-end gap-2">
+    <div class="card-footer records-filter-actions d-flex flex-wrap gap-2">
         <a asp-page="/Records/Index" class="btn btn-outline-secondary">Limpiar</a>
-        <button type="submit" class="btn btn-outline-primary">Filtrar</button>
-        <button type="button" id="btnExportFiltered" class="btn btn-success">Exportar filtrados (.csv)</button>
-        <button type="button" id="btnExportProspects" class="btn btn-warning">Exportar prospectos (.csv)</button>
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" id="btnExportFiltered" class="btn btn-outline-success">Exportar filtrados (.csv)</button>
+        <button type="button" id="btnExportProspects" class="btn btn-outline-secondary">Exportar prospectos (.csv)</button>
         <button type="button" id="btnExportForPhone" class="btn btn-outline-success">Exportar para celular (.csv)</button>
     </div>
 </form>
@@ -212,13 +222,6 @@
         </div>
     </div>
 }
-
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="border rounded p-3 bg-light h-100">
-            <div class="text-muted small">Registros filtrados</div>
-            <div class="fs-4 fw-semibold">@Model.TotalFilteredRecords</div>
-        </div>
 
 @if (Model.DueCallReminders.Count > 0 || Model.UpcomingCallReminders.Count > 0)
 {
@@ -301,24 +304,11 @@
     </div>
 }
 
-<div id="callReminderMeta" data-next-call-scheduled-at="@(Model.NextCallScheduledAt?.ToString("O") ?? string.Empty)" class="d-none"></div>
-    </div>
-    <div class="col-md-4">
-        <div class="border rounded p-3 bg-light h-100">
-            <div class="text-muted small">Suma de pagos</div>
-            <div class="fs-4 fw-semibold text-success">@($"S/ {Model.TotalPaidAmount:0.00}")</div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="border rounded p-3 bg-light h-100">
-            <div class="text-muted small">Suma por cobrar</div>
-            <div class="fs-4 fw-semibold text-danger">@($"S/ {Model.TotalBalanceDue:0.00}")</div>
-        </div>
-    </div>
-</div>
 
-<div class="table-responsive">
-    <table class="table table-striped table-bordered align-middle">
+<section class="records-table-card" aria-labelledby="records-table-title">
+    <div class="records-table-heading"><div><h2 id="records-table-title">Listado de registros</h2><span>@Model.TotalFilteredRecords registros encontrados</span></div><span class="table-scroll-hint">Desliza para ver todas las columnas &rarr;</span></div>
+<div class="table-responsive records-table-scroll" role="region" aria-label="Listado de pedidos y ventas" tabindex="0">
+    <table class="table records-table align-middle">
         <thead class="table-light">
             <tr>
                 @if (Model.CanEdit)
@@ -365,28 +355,28 @@
         {
             @foreach (var item in Model.Records)
             {
-                var rowStyle = item.StatusCatalog.Name == "Interesado" ? "background-color:#fff176 !important;" : "";
-                <tr style="@rowStyle">
+                var rowClass = item.StatusCatalog.Name == "Interesado" ? "record-interested" : "";
+                <tr class="@rowClass">
                     @if (Model.CanEdit)
                     {
                         <td>
                             <a asp-page="/Records/Edit"
                                asp-route-id="@item.Id"
                                asp-route-returnUrl="@($"{ViewContext.HttpContext.Request.Path}{ViewContext.HttpContext.Request.QueryString}")"
-                               class="btn btn-sm btn-primary">Editar</a>
+                               class="btn btn-sm btn-outline-primary">Editar</a>
                         </td>
                     }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
                     <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
-                    <td>@item.Cellphone</td>
+                    <td class="record-phone">@item.Cellphone</td>
                     <td class="text-truncate" style="max-width:120px" title="@item.NameOrReference">@item.NameOrReference</td>
                     <td class="text-truncate" style="max-width:150px" title="@item.CallActivity">@item.CallActivity</td>
                     <td>@item.Dni</td>
                     <td>@item.Product?.Name</td>
                     <td>@item.Quantity</td>
                     <td class="text-nowrap">@($"S/ {item.ProductAmount:0.00}")</td>
-                    <td class="text-nowrap">@($"S/ {item.ActivePaidAmount:0.00}")</td>
-                    <td class="text-nowrap">@($"S/ {item.CalculatedBalanceDue:0.00}")</td>
+                    <td class="text-nowrap amount-paid">@($"S/ {item.ActivePaidAmount:0.00}")</td>
+                    <td class="text-nowrap amount-due">@($"S/ {item.CalculatedBalanceDue:0.00}")</td>
                     <td>
                         <button type="button"
                                 class="btn btn-sm btn-outline-info btn-payments"
@@ -453,6 +443,8 @@
         </tbody>
     </table>
 </div>
+<div class="records-table-footer">@Model.TotalFilteredRecords registros &middot; Los importes se muestran en soles (PEN)</div>
+</section>
 
 <div class="modal fade" id="paymentsModal" tabindex="-1" aria-labelledby="paymentsModalLabel" aria-hidden="true" data-bs-keyboard="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -820,3 +812,5 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
 }
 
 
+
+</div>

@@ -12,7 +12,7 @@ namespace OldSchoolApi.Controllers;
 [ApiController]
 [Route("api/payments")]
 [Authorize]
-public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, IWebHostEnvironment env, ILogger<PaymentsController> logger) : ControllerBase
+public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpClientFactory httpClientFactory, IWebHostEnvironment env, ILogger<PaymentsController> logger, OldSchool.Storage.RustFsPaymentProofs rustFs) : ControllerBase
 {
     public class ProcessVoucherRequest
     {
@@ -119,7 +119,28 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
 
         // Guardar imagen como comprobante
         var publicBaseUrl = $"{Request.Scheme}://{Request.Host}";
-        var (proofPath, proofFileName) = SaveProofImage(request.ImageBase64, request.ImageExtension, celular, publicBaseUrl);
+        string proofPath;
+        string proofFileName;
+        try
+        {
+            if (rustFs.Enabled)
+            {
+                proofPath = await rustFs.SaveAsync(Convert.FromBase64String(NormalizeBase64Image(request.ImageBase64)), request.ImageExtension, HttpContext.RequestAborted);
+                proofFileName = Path.GetFileName(proofPath);
+            }
+            else
+            {
+                (proofPath, proofFileName) = SaveProofImage(request.ImageBase64, request.ImageExtension, celular, publicBaseUrl);
+            }
+        }
+        catch (FormatException)
+        {
+            return BadRequest(new ProcessVoucherResponse { Message = "La imagen Base64 no es valida." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(503, new ProcessVoucherResponse { Message = ex.Message });
+        }
 
         // Registrar el pago
         var payment = new CustomerRecordPayment

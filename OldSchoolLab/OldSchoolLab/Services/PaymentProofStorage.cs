@@ -10,7 +10,7 @@ public interface IPaymentProofStorage
 
 public sealed record StoredPaymentProof(string PublicPath, string OriginalFileName);
 
-public class PaymentProofStorage(IWebHostEnvironment environment) : IPaymentProofStorage
+public class PaymentProofStorage(IWebHostEnvironment environment, OldSchool.Storage.RustFsPaymentProofs rustFs) : IPaymentProofStorage
 {
     private static readonly string[] AllowedExtensions = [".jpg", ".jpeg", ".png", ".webp"];
 
@@ -32,6 +32,14 @@ public class PaymentProofStorage(IWebHostEnvironment environment) : IPaymentProo
         if (!AllowedExtensions.Contains(extension))
         {
             throw new InvalidOperationException("Solo se permiten imágenes JPG, PNG o WEBP.");
+        }
+
+        if (rustFs.Enabled)
+        {
+            using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, cancellationToken);
+            var path = await rustFs.SaveAsync(buffer.ToArray(), extension, cancellationToken);
+            return new StoredPaymentProof(path, Path.GetFileName(file.FileName));
         }
 
         var folderPath = Path.Combine(environment.ContentRootPath, "storage", "payment-proofs");
