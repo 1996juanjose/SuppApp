@@ -115,8 +115,16 @@ public class AuthController(JwtTokenService jwtTokenService, AuthDbContext db) :
             roles = new List<string> { "Admin" };
         }
 
-        int? companyId = null;
-        string? companyName = null;
+        var userCompany = await LoadUserCompanyAsync(user.Id, cancellationToken);
+        if (request.CompanyId.HasValue
+            && userCompany?.Id != request.CompanyId.Value
+            && !roles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
+        {
+            return Forbid();
+        }
+
+        int? companyId = userCompany?.Id;
+        var companyName = userCompany?.Name;
 
         if (selectedCompanyId.HasValue)
         {
@@ -124,41 +132,8 @@ public class AuthController(JwtTokenService jwtTokenService, AuthDbContext db) :
             companyId = selectedCompany?.Id;
             companyName = selectedCompany?.Name;
         }
-        else
-        {
-            await using var connection = CreateConnection();
-            if (connection.State != System.Data.ConnectionState.Open)
-            {
-                await connection.OpenAsync(cancellationToken);
-            }
 
-            try
-            {
-                await using var command = connection.CreateCommand();
-                command.CommandText = "select \"CompanyId\", \"CompanyName\" from \"AspNetUsers\" where \"Id\" = @userId limit 1";
-                command.Parameters.AddWithValue("userId", user.Id);
-
-                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-                if (await reader.ReadAsync(cancellationToken))
-                {
-                    if (!await reader.IsDBNullAsync(0, cancellationToken))
-                    {
-                        companyId = reader.GetInt32(0);
-                    }
-
-                    if (!await reader.IsDBNullAsync(1, cancellationToken))
-                    {
-                        companyName = reader.GetString(1);
-                    }
-                }
-            }
-            catch
-            {
-                // Si el esquema todavía no tiene estas columnas, el login sigue funcionando.
-            }
-        }
-
-        var token = jwtTokenService.CreateToken(user.UserName ?? normalizedUserName, roles);
+        var token = jwtTokenService.CreateToken(user.UserName ?? normalizedUserName, roles, companyId, user.Id);
         return Ok(new
         {
             token,
@@ -168,6 +143,38 @@ public class AuthController(JwtTokenService jwtTokenService, AuthDbContext db) :
             companyId,
             companyName
         });
+    }
+
+    private async Task<CompanyLookupDto?> LoadUserCompanyAsync(string userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var connection = CreateConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                await connection.OpenAsync(cancellationToken);
+            }
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = "select u.\"CompanyId\", c.\"Name\" from \"AspNetUsers\" u left join \"Companies\" c on c.\"Id\" = u.\"CompanyId\" where u.\"Id\" = @userId limit 1";
+            command.Parameters.AddWithValue("userId", userId);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken) || await reader.IsDBNullAsync(0, cancellationToken))
+            {
+                return null;
+            }
+
+            return new CompanyLookupDto
+            {
+                Id = reader.GetInt32(0),
+                Name = await reader.IsDBNullAsync(1, cancellationToken) ? string.Empty : reader.GetString(1)
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<CompanyLookupDto?> LoadCompanyAsync(int companyId, CancellationToken cancellationToken)

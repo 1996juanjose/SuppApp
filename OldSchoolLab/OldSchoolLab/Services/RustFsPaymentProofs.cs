@@ -24,13 +24,20 @@ public sealed class RustFsPaymentProofs(IConfiguration config, ILogger<RustFsPay
             ForcePathStyle = true
         });
 
-    public static string NormalizeExtension(string extension) => extension.TrimStart('.').ToLowerInvariant() switch
+    public static string NormalizeExtension(string? extension)
     {
-        "jpg" or "jpeg" => "jpg",
-        "png" => "png",
-        "webp" => "webp",
-        _ => throw new InvalidOperationException("Solo se permiten imagenes JPG, PNG o WEBP.")
-    };
+        var value = (extension ?? string.Empty).Trim().ToLowerInvariant();
+        if (value.StartsWith("image/", StringComparison.Ordinal))
+            value = value[6..];
+
+        return value.TrimStart('.') switch
+        {
+            "jpg" or "jpeg" => "jpg",
+            "png" => "png",
+            "webp" => "webp",
+            _ => throw new InvalidOperationException("Solo se permiten imagenes JPG, PNG o WEBP.")
+        };
+    }
 
     public async Task<string> SaveAsync(byte[] bytes, string extension, CancellationToken cancellationToken = default)
     {

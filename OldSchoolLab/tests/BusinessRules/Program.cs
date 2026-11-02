@@ -29,6 +29,16 @@ static ClaimsPrincipal User(string name, int company = 1, string role = "Gerenci
     new Claim(ClaimTypes.Name, name), new Claim(ClaimTypes.NameIdentifier, name), new Claim("company_id", company.ToString()), new Claim(ClaimTypes.Role, role)
 }, "test"));
 static async Task Reject(Func<Task> action, string name) { try { await action(); } catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException) { Check(true, name); return; } throw new Exception("Expected rejection: " + name); }
+foreach (var (input, expected) in new[] { ("image/jpeg", "jpg"), (" IMAGE/PNG ", "png"), ("image/webp", "webp"), (".JPG", "jpg"), ("jpeg", "jpg") })
+{
+    Check(Api::OldSchool.Storage.RustFsPaymentProofs.NormalizeExtension(input) == expected, $"API RustFS accepts {input}");
+    Check(Web::OldSchool.Storage.RustFsPaymentProofs.NormalizeExtension(input) == expected, $"Web RustFS accepts {input}");
+}
+foreach (var input in new string?[] { "image/gif", "application/pdf", "", null })
+{
+    await Reject(() => { Api::OldSchool.Storage.RustFsPaymentProofs.NormalizeExtension(input); return Task.CompletedTask; }, $"API RustFS rejects {input ?? "null"}");
+    await Reject(() => { Web::OldSchool.Storage.RustFsPaymentProofs.NormalizeExtension(input); return Task.CompletedTask; }, $"Web RustFS rejects {input ?? "null"}");
+}
 var day = new DateTime(2026, 1, 1, 12, 0, 0);
 Check(!Policy.CanCreateNext(day, day.AddDays(30)) && Policy.CanCreateNext(day, day.AddDays(30).AddTicks(1)), "strict 30-day boundary");
 var numbers = Policy.GetPurchaseNumbers(new[] { new Entry(1,1,"953 342 737",day),new Entry(2,1,"953342737",day.AddDays(2)),new Entry(3,1,"953342737",day.AddDays(34)),new Entry(4,1,"953342737",day.AddDays(70)),new Entry(5,2,"953342737",day.AddDays(70)) });

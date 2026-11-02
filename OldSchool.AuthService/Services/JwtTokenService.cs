@@ -7,7 +7,7 @@ namespace OldSchool.AuthService.Services;
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public string CreateToken(string username, IEnumerable<string> roles)
+    public string CreateToken(string username, IEnumerable<string> roles, int? companyId = null, string? userId = null)
     {
         var issuer = configuration["Jwt:Issuer"] ?? "OldSchool.AuthService";
         var audience = configuration["Jwt:Audience"] ?? "OldSchool.Microservices";
@@ -22,6 +22,15 @@ public sealed class JwtTokenService(IConfiguration configuration)
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
         claims.Add(new Claim(JwtRegisteredClaimNames.UniqueName, username));
+        if (companyId.HasValue)
+        {
+            claims.Add(new Claim("company_id", companyId.Value.ToString()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            claims.Add(new Claim("user_id", userId));
+        }
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
         var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);

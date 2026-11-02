@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="OldSchoolDialer.MainPage"
+             Title="OldSchool Ventas">
+    <ScrollView>
+        <VerticalStackLayout Padding="24" Spacing="14">
+            <Label Text="OLD SCHOOL VENTAS" FontSize="26" FontAttributes="Bold" />
+            <Label Text="Conecta la app con tus servicios" FontSize="14" />
+            <Entry x:Name="AuthUrlEntry" Placeholder="URL base de AuthService (https://servidor)" Keyboard="Url" />
+            <Entry x:Name="ApiUrlEntry" Placeholder="URL base de OldSchoolApi (https://servidor)" Keyboard="Url" />
+            <Entry x:Name="UsernameEntry" Placeholder="Usuario" />
+            <Entry x:Name="PasswordEntry" Placeholder="Contraseña" IsPassword="True" />
+            <Button x:Name="LoginButton" Text="Iniciar sesión" Clicked="OnLoginClicked" />
+            <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" />
+            <Label x:Name="MessageLabel" TextColor="Red" />
+            <VerticalStackLayout x:Name="QueuePanel" IsVisible="False" Spacing="12">
+                <Label x:Name="QueueSummaryLabel" FontAttributes="Bold" />
+                <Button Text="Cargar prospectos" Clicked="OnLoadQueueClicked" />
+                <Border x:Name="CurrentProspectPanel" IsVisible="False" Padding="16" Stroke="Gray" StrokeThickness="1">
+                    <VerticalStackLayout Spacing="12">
+                        <Label x:Name="ProspectNameLabel" FontSize="20" FontAttributes="Bold" />
+                        <Label x:Name="ProspectPhoneLabel" FontSize="18" />
+                        <Label x:Name="ProspectPositionLabel" />
+                        <Button x:Name="CallButton" Text="Abrir marcador" Clicked="OnCallClicked" />
+                        <Picker x:Name="OutcomePicker" Title="Resultado de la llamada" />
+                        <Editor x:Name="NotesEditor" Placeholder="Notas de la llamada" AutoSize="TextChanges" MaxLength="250" />
+                        <Button x:Name="SaveResultButton" Text="Guardar y continuar" Clicked="OnSaveResultClicked" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>
