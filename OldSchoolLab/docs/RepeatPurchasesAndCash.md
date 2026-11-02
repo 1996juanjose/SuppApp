@@ -65,3 +65,12 @@ Usan EF Core en memoria y OCR simulado, sin conexiones externas ni movimientos
 en la base real. Cubren el limite de 30 dias, numeracion historica, empresa,
 webhooks repetidos, pagos y guias al pedido nuevo, permisos ADMIN, aperturas
 duplicadas, cierre, gastos invalidos y sumatorias por periodo.
+
+Las operaciones de caja ejecutan la transaccion completa dentro de
+`Database.CreateExecutionStrategy()`, compatible con `EnableRetryOnFailure`.
+La regresion optativa contra PostgreSQL real crea un esquema temporal exclusivo,
+verifica apertura/gasto/cierre/reapertura y elimina solo ese esquema al terminar:
+
+```powershell
+dotnet run --project tests/BusinessRules/BusinessRules.csproj -p:UseAppHost=false -- --postgres-isolated OldSchoolLab/appsettings.json
+```

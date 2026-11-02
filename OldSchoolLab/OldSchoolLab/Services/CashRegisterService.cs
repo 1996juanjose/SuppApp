@@ -27,38 +27,66 @@ public class CashRegisterService(ApplicationDbContext db, IConfiguration config)
         }
     }
 
+    private Task<T> InTransactionAsync<T>(Func<Task<T>> operation) =>
+        db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
+        {
+            await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
+            try
+            {
+                var result = await operation();
+                if (transaction is not null) await transaction.CommitAsync();
+                return result;
+            }
+            catch (Exception ex) when (ex is Npgsql.NpgsqlException or DbUpdateException or TimeoutException)
+            {
+                // Retry with fresh tracked state after a failed database operation.
+                db.ChangeTracker.Clear();
+                throw;
+            }
+        });
+
     public Task<CashRegister?> GetOpenAsync(int companyId) => db.CashRegisters.AsNoTracking()
         .SingleOrDefaultAsync(x => x.CompanyId == companyId && x.ClosedAt == null);
 
     public async Task<CashRegister> OpenAsync(int companyId, ClaimsPrincipal user)
     {
         if (!CanManage(user)) throw new UnauthorizedAccessException("Solo ADMIN puede abrir la caja.");
-        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
-        await LockAsync(companyId);
-        if (!await db.Companies.AnyAsync(x => x.Id == companyId && x.IsActive))
-            throw new InvalidOperationException("Selecciona una empresa activa.");
-        if (await db.CashRegisters.AnyAsync(x => x.CompanyId == companyId && x.ClosedAt == null))
-            throw new InvalidOperationException("Ya hay una caja abierta en esta empresa.");
         var box = new CashRegister { CompanyId = companyId, OpenedAt = Now,
             OpenedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", OpenedByUserName = user.Identity!.Name! };
-        db.CashRegisters.Add(box);
-        await db.SaveChangesAsync();
-        if (transaction is not null) await transaction.CommitAsync();
-        return box;
+        return await InTransactionAsync(async () =>
+        {
+            await LockAsync(companyId);
+            // A lost commit acknowledgement must not open a second cash register.
+            if (box.Id != 0 && await db.CashRegisters.AsNoTracking().AnyAsync(x => x.Id == box.Id)) return box;
+            if (box.Id != 0) { db.Entry(box).State = EntityState.Detached; box.Id = 0; }
+            if (!await db.Companies.AnyAsync(x => x.Id == companyId && x.IsActive))
+                throw new InvalidOperationException("Selecciona una empresa activa.");
+            if (await db.CashRegisters.AnyAsync(x => x.CompanyId == companyId && x.ClosedAt == null))
+                throw new InvalidOperationException("Ya hay una caja abierta en esta empresa.");
+            db.CashRegisters.Add(box);
+            await db.SaveChangesAsync();
+            return box;
+        });
     }
 
     public async Task CloseAsync(int companyId, int id, ClaimsPrincipal user)
     {
         if (!CanManage(user)) throw new UnauthorizedAccessException("Solo ADMIN puede cerrar la caja.");
-        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
-        await LockAsync(companyId);
-        var box = await db.CashRegisters.SingleOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId);
-        if (box is null || box.ClosedAt.HasValue) throw new InvalidOperationException("La caja no existe o ya esta cerrada.");
-        box.ClosedAt = Now;
-        box.ClosedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
-        box.ClosedByUserName = user.Identity!.Name!;
-        await db.SaveChangesAsync();
-        if (transaction is not null) await transaction.CommitAsync();
+        var closedAt = Now;
+        closedAt = new DateTime(closedAt.Ticks - closedAt.Ticks % 10, DateTimeKind.Unspecified);
+        var actorId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await InTransactionAsync(async () =>
+        {
+            await LockAsync(companyId);
+            var box = await db.CashRegisters.SingleOrDefaultAsync(x => x.Id == id && x.CompanyId == companyId);
+            if (box?.ClosedAt == closedAt && box.ClosedByUserId == actorId) return true;
+            if (box is null || box.ClosedAt.HasValue) throw new InvalidOperationException("La caja no existe o ya esta cerrada.");
+            box.ClosedAt = closedAt;
+            box.ClosedByUserId = actorId;
+            box.ClosedByUserName = user.Identity!.Name!;
+            await db.SaveChangesAsync();
+            return true;
+        });
     }
 
     public async Task AddExpenseAsync(int companyId, int boxId, string name, decimal amount, string? notes, ClaimsPrincipal user)
@@ -67,16 +95,22 @@ public class CashRegisterService(ApplicationDbContext db, IConfiguration config)
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 120 || amount <= 0 || amount > 99999999.99m
             || decimal.Round(amount, 2) != amount || (notes?.Length ?? 0) > 250)
             throw new InvalidOperationException("Ingresa un concepto y un gasto positivo con hasta dos decimales.");
-        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync() : null;
-        await LockAsync(companyId);
-        var box = await db.CashRegisters.SingleOrDefaultAsync(x => x.Id == boxId && x.CompanyId == companyId && x.ClosedAt == null);
-        if (box is null) throw new InvalidOperationException("Solo se pueden registrar gastos en la caja abierta.");
         var now = Now;
-        db.Expenses.Add(new Expense { CompanyId = companyId, CashRegisterId = box.Id, Name = name.Trim(), Amount = amount,
+        var expense = new Expense { CompanyId = companyId, CashRegisterId = boxId, Name = name.Trim(), Amount = amount,
             Notes = notes?.Trim() ?? "", CreatedAt = now, ExpenseDate = now.Date,
-            CreatedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", CreatedByUserName = user.Identity?.Name ?? "" });
-        await db.SaveChangesAsync();
-        if (transaction is not null) await transaction.CommitAsync();
+            CreatedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "", CreatedByUserName = user.Identity?.Name ?? "" };
+        await InTransactionAsync(async () =>
+        {
+            await LockAsync(companyId);
+            // Reuse a committed expense if the connection failed during commit acknowledgement.
+            if (expense.Id != 0 && await db.Expenses.AsNoTracking().AnyAsync(x => x.Id == expense.Id)) return true;
+            if (expense.Id != 0) { db.Entry(expense).State = EntityState.Detached; expense.Id = 0; }
+            var box = await db.CashRegisters.SingleOrDefaultAsync(x => x.Id == boxId && x.CompanyId == companyId && x.ClosedAt == null);
+            if (box is null) throw new InvalidOperationException("Solo se pueden registrar gastos en la caja abierta.");
+            db.Expenses.Add(expense);
+            await db.SaveChangesAsync();
+            return true;
+        });
     }
 
     public async Task<CashTotals> GetTotalsAsync(CashRegister box)

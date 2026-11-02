@@ -18,6 +18,12 @@ using Cash = Web::OldSchoolLab.Services.CashRegisterService;
 using ApiDb = Api::OldSchoolApi.Data.ApiDbContext;
 using Controller = Api::OldSchoolApi.Controllers.RecordsController;
 
+if (args.Length == 2 && args[0] == "--postgres-isolated")
+{
+    await PostgreSqlCashRegression.RunAsync(args[1]);
+    return;
+}
+
 static void Check(bool value, string name) { if (!value) throw new Exception(name); Console.WriteLine("PASS " + name); }
 static ClaimsPrincipal User(string name, int company = 1, string role = "Gerencia") => new(new ClaimsIdentity(new[] {
     new Claim(ClaimTypes.Name, name), new Claim(ClaimTypes.NameIdentifier, name), new Claim("company_id", company.ToString()), new Claim(ClaimTypes.Role, role)
