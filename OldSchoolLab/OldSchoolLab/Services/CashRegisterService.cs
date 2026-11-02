@@ -7,7 +7,7 @@ namespace OldSchoolLab.Services;
 
 public sealed record CashTotals(decimal Income, decimal Reversals, decimal Expenses, int PaymentCount)
 {
-    public decimal Net => Income - Reversals - Expenses;
+    public decimal Net => Income - Expenses;
 }
 
 public class CashRegisterService(ApplicationDbContext db, IConfiguration config)
@@ -118,7 +118,7 @@ public class CashRegisterService(ApplicationDbContext db, IConfiguration config)
         var end = box.ClosedAt ?? Now;
         // Count registration time, not the date printed on an old voucher.
         var payments = db.CustomerRecordPayments.AsNoTracking()
-            .Where(x => x.CustomerRecord.CompanyId == box.CompanyId && x.CreatedAt >= box.OpenedAt && x.CreatedAt < end);
+            .Where(x => x.CustomerRecord.CompanyId == box.CompanyId && !x.IsReversed && x.CreatedAt >= box.OpenedAt && x.CreatedAt < end);
         var income = await payments.SumAsync(x => (decimal?)x.Amount) ?? 0m;
         var refunds = await db.CustomerRecordPayments.AsNoTracking()
             .Where(x => x.CustomerRecord.CompanyId == box.CompanyId && x.IsReversed && x.ReversedAt >= box.OpenedAt && x.ReversedAt < end)

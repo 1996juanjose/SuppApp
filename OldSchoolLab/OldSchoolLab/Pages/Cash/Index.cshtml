@@ -23,15 +23,15 @@
     <div class="card mb-4"><div class="card-body d-flex justify-content-between gap-3 flex-wrap">
         <div><strong>Caja #@box.Id</strong> <span class="badge @(box.ClosedAt.HasValue ? "text-bg-secondary" : "text-bg-success")">@(box.ClosedAt.HasValue ? "Cerrada" : "Abierta")</span><div class="small text-muted mt-2">Abierta: @box.OpenedAt.ToString("dd/MM/yyyy HH:mm:ss") · @box.OpenedByUserName</div>
         @if (box.ClosedAt.HasValue) { <div class="small text-muted">Cerrada: @box.ClosedAt.Value.ToString("dd/MM/yyyy HH:mm:ss") · @box.ClosedByUserName</div> }</div>
-        <div class="small text-muted align-self-center">@Model.Totals.PaymentCount pagos registrados · PEN</div>
+        <div class="small text-muted align-self-center">@Model.Totals.PaymentCount pagos no extornados · PEN</div>
     </div></div>
     <section class="records-metrics" aria-label="Resumen de caja">
-        <div class="metric-card metric-paid"><div><div class="metric-label">Ingresos registrados</div><div class="metric-value">S/ @Model.Totals.Income.ToString("0.00")</div></div></div>
+        <div class="metric-card metric-paid"><div><div class="metric-label">Ingresos no extornados</div><div class="metric-value">S/ @Model.Totals.Income.ToString("0.00")</div></div></div>
         <div class="metric-card metric-due"><div><div class="metric-label">Gastos</div><div class="metric-value">S/ @Model.Totals.Expenses.ToString("0.00")</div></div></div>
-        <div class="metric-card"><div><div class="metric-label">Extornos</div><div class="metric-value">S/ @Model.Totals.Reversals.ToString("0.00")</div></div></div>
+        <div class="metric-card"><div><div class="metric-label">Extornos del período (informativo)</div><div class="metric-value">S/ @Model.Totals.Reversals.ToString("0.00")</div></div></div>
         <div class="metric-card metric-orders"><div><div class="metric-label">Saldo neto</div><div class="metric-value">S/ @Model.Totals.Net.ToString("0.00")</div></div></div>
     </section>
-    <p class="small text-muted">Saldo = ingresos − extornos − gastos. Los movimientos se agrupan por la hora de registro en el sistema, no por la fecha del voucher. Hora de Perú.</p>
+    <p class="small text-muted">Saldo = ingresos no extornados − gastos. Los pagos extornados se excluyen incluso si el extorno fue posterior al cierre. Los movimientos se agrupan por la hora de registro en el sistema, no por la fecha del voucher. Hora de Perú.</p>
     @if (!box.ClosedAt.HasValue && Model.CanAddExpense)
     {
         <form method="post" asp-page-handler="Expense" class="card mb-4"><div class="card-body p-4">
