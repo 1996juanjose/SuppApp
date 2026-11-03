@@ -30,7 +30,7 @@
     <Button x:Name="LoadButton" Text="Aplicar filtros y cargar" Clicked="OnLoadQueueClicked"/>
    </VerticalStackLayout></Border>
    <Border Stroke="#BFDBFE" BackgroundColor="#EFF6FF" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="10">
-    <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label x:Name="LockLabel" Text="🔓 Avance manual" FontAttributes="Bold"/><Label Text="Con candado: al guardar, llama al siguiente." FontSize="11" TextColor="#64748B"/></VerticalStackLayout><Switch x:Name="AutomaticSwitch" Grid.Column="1" OnColor="#2563EB" Toggled="OnAutomaticToggled"/></Grid>
+    <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label x:Name="LockLabel" Text="🔓 Avance manual" FontAttributes="Bold"/><Label Text="Puedes guardar y llamar al siguiente con el botón azul." FontSize="11" TextColor="#64748B"/></VerticalStackLayout><Switch x:Name="AutomaticSwitch" Grid.Column="1" OnColor="#2563EB" Toggled="OnAutomaticToggled"/></Grid>
     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10"><Button x:Name="StartButton" Text="Iniciar llamadas masivas" Clicked="OnStartClicked" BackgroundColor="#2563EB"/><Button x:Name="PauseButton" Grid.Column="1" Text="Pausar" Clicked="OnPauseClicked" BackgroundColor="#BE123C"/></Grid>
    </VerticalStackLayout></Border>
    <Label x:Name="QueueSummaryLabel" TextColor="#64748B"/>
@@ -41,10 +41,21 @@
     <Label x:Name="CallCountLabel" FontAttributes="Bold" TextColor="#7C3AED"/>
     <Label x:Name="PreviousOutcomeLabel" FontSize="12" TextColor="#64748B"/>
     <Button x:Name="CallButton" Text="Llamar a este prospecto" Clicked="OnCallClicked" BackgroundColor="#059669"/>
-    <Picker x:Name="OutcomePicker" Title="¿Cómo fue la llamada?" SelectedIndexChanged="OnOutcomeChanged"/>
+    <Label Text="1. Selecciona el resultado de la llamada" FontAttributes="Bold"/>
+    <FlexLayout x:Name="OutcomeChoices" Wrap="Wrap">
+     <Button Text="Contestó" CommandParameter="Contestó" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+     <Button Text="No contestó" CommandParameter="No contestó" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+     <Button Text="Ocupado" CommandParameter="Ocupado" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+     <Button Text="Número incorrecto" CommandParameter="Número incorrecto" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+     <Button Text="Volver a llamar" CommandParameter="Volver a llamar" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+    </FlexLayout>
+    <Label x:Name="SelectedOutcomeLabel" Text="Elige una opción para habilitar el guardado." TextColor="#64748B" FontSize="12"/>
+    <Picker x:Name="OutcomePicker" IsVisible="False" Title="Resultado" SelectedIndexChanged="OnOutcomeChanged"/>
+
     <VerticalStackLayout x:Name="CallbackPanel" IsVisible="False"><Label Text="Volver a llamar (hora de Perú)" FontSize="12"/><DatePicker x:Name="CallbackDate"/><TimePicker x:Name="CallbackTime" Format="HH:mm"/></VerticalStackLayout>
-    <Editor x:Name="NotesEditor" Placeholder="Notas de la conversación" AutoSize="TextChanges" MaxLength="250"/>
-    <Button x:Name="SaveResultButton" Text="Guardar resultado" Clicked="OnSaveResultClicked"/>
+    <Editor x:Name="NotesEditor" Placeholder="Notas opcionales" AutoSize="TextChanges" MaxLength="250"/>
+    <Button x:Name="SaveResultButton" Text="Guardar y llamar al siguiente" Clicked="OnSaveResultClicked" BackgroundColor="#2563EB"/>
+    <Button x:Name="SaveOnlyButton" Text="Solo guardar, sin llamar" Clicked="OnSaveOnlyClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/>
     <Button x:Name="CancelAttemptButton" Text="Cancelar intento sin contarlo" Clicked="OnCancelAttemptClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/>
    </VerticalStackLayout></Border>
    <Button x:Name="NextBatchButton" Text="Cargar siguiente tanda" Clicked="OnNextBatchClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/>

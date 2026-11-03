@@ -47,11 +47,11 @@ public partial class MainPage : ContentPage
         CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = CallButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
-        SaveResultButton.IsEnabled = !busy && session.AwaitingResult;
+        SaveOnlyButton.IsEnabled = SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
         CancelAttemptButton.IsVisible = session.AwaitingResult;
         CancelAttemptButton.IsEnabled = !busy;
         // Pausing is always available, including while a save is in flight.
-        SaveResultButton.Text = session.Running && session.AutoAdvance ? "Guardar y llamar al siguiente" : "Guardar resultado";
+        SaveResultButton.Text = "Guardar y llamar al siguiente";
     }
     async Task EnsureAsync(HttpResponseMessage response)
     {
@@ -138,17 +138,36 @@ public partial class MainPage : ContentPage
         session.CancelAttempt(); OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; Message("Intento cancelado. La tanda está pausada."); Controls();
     }
     void OnAutomaticToggled(object? sender, ToggledEventArgs e) { session.AutoAdvance = e.Value; LockLabel.Text = e.Value ? "🔒 Avance automático activado" : "🔓 Avance manual"; Controls(); }
-    void OnOutcomeChanged(object? sender, EventArgs e) => CallbackPanel.IsVisible = OutcomePicker.SelectedItem as string == "Volver a llamar";
-    async void OnSaveResultClicked(object? sender, EventArgs e) => await RunAsync(async () =>
+    void OnOutcomeSelected(object? sender, EventArgs e)
+    {
+        if (sender is Button button) OutcomePicker.SelectedItem = button.CommandParameter as string;
+    }
+    void OnOutcomeChanged(object? sender, EventArgs e)
+    {
+        var selected = OutcomePicker.SelectedItem as string;
+        CallbackPanel.IsVisible = selected == "Volver a llamar";
+        SelectedOutcomeLabel.Text = selected is null ? "Elige una opción para habilitar el guardado." : $"Resultado: {selected}";
+        foreach (var button in OutcomeChoices.Children.OfType<Button>())
+        {
+            var active = button.CommandParameter as string == selected;
+            button.BackgroundColor = Color.FromArgb(active ? "#2563EB" : "#E2E8F0");
+            button.TextColor = active ? Colors.White : Color.FromArgb("#334155");
+        }
+        Controls();
+    }
+    async void OnSaveResultClicked(object? sender, EventArgs e) => await SaveResultAsync(true);
+    async void OnSaveOnlyClicked(object? sender, EventArgs e) => await SaveResultAsync(false);
+    async Task SaveResultAsync(bool callNext) => await RunAsync(async () =>
     {
         if (!session.AwaitingResult || currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome) throw new InvalidOperationException("Elige el resultado de la llamada pendiente.");
         DateTime? nextCallAt = outcome == "Volver a llamar" ? DateTime.SpecifyKind(CallbackDate.Date.GetValueOrDefault().Date + CallbackTime.Time.GetValueOrDefault(), DateTimeKind.Unspecified) : null;
+        if (callNext) session.Start(); else session.Pause();
         using var request = Request(HttpMethod.Post, $"api/records/{prospects[currentIndex].Id}/prospect-call-result");
         request.Content = JsonContent.Create(new { requestId = session.PendingAttemptId, outcome, notes = NotesEditor.Text, nextCallAt });
         using var response = await http.SendAsync(request); await EnsureAsync(response);
-        var advance = session.ResultSaved(); currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
+        var advance = session.ResultSaved(callNext); currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
         Message("Resultado guardado. " + (advance ? "Llamando al siguiente…" : "Elige cuándo llamar al siguiente."));
-        if (advance && session.Running && session.AutoAdvance && currentIndex < prospects.Count) await CallAsync();
+        if (advance && session.Running && currentIndex < prospects.Count) await CallAsync();
         if (currentIndex >= prospects.Count) { session.Pause(); Message("Tanda terminada. Carga la siguiente para continuar."); }
     });
     void ShowCurrent()

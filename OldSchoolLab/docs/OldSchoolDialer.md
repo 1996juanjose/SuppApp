@@ -1,4 +1,4 @@
-# OldSchool Ventas 1.2: cola nativa de llamadas
+# OldSchool Ventas 1.3: cola nativa de llamadas
 
 Se reutiliza el proyecto Android .NET MAUI `OldSchoolDialer`, con el mismo
 identificador de app `com.oldschool.ventas`.
@@ -15,8 +15,12 @@ identificador de app `com.oldschool.ventas`.
 5. Pulsar **Iniciar llamadas masivas** y conceder el permiso Telefono de Android.
 6. Terminar la llamada en el telefono y volver a la app para elegir resultado:
    Contesto, No contesto, Ocupado, Numero incorrecto o Volver a llamar.
-7. Guardar el resultado. Con el candado **activado**, se llama al siguiente;
-   con el candado **desactivado**, el usuario inicia la siguiente llamada.
+7. Elegir uno de los botones visibles de resultado y pulsar **Guardar y llamar
+   al siguiente**. Esta accion explicita llama al siguiente tras la confirmacion
+   del servidor, tambien si el candado estaba desactivado o la primera llamada
+   se inicio individualmente. **Solo guardar, sin llamar** permite detenerse.
+   Escribir notas no sustituye la eleccion del resultado; los botones de guardado
+   se habilitan solo tras elegir una opcion.
 8. Pausar detiene el avance incluso si se esta guardando. Un intento que no
    llego a realizarse puede cancelarse sin contarlo; esto pausa la tanda.
 

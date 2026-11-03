@@ -23,6 +23,12 @@ static class LeadCallChecks
         session.CallStarted(); session.Pause(); Check(!session.ResultSaved(), "pause overrides automatic lock");
         session.Start(); session.CallStarted(); session.AutoAdvance = false; Check(!session.ResultSaved(), "unlock during call stops automatic advance");
         Check(!session.ResultSaved(), "duplicate save callback does not advance twice");
+        session.Start(); session.AutoAdvance = false; session.CallStarted();
+        Check(session.ResultSaved(true), "explicit save-and-call advances even with the automatic lock off");
+        session.Start(); session.AutoAdvance = true; session.CallStarted();
+        Check(!session.ResultSaved(false), "save-only action never calls next even with the lock on");
+        session.Start(); session.CallStarted(); session.Pause();
+        Check(!session.ResultSaved(true), "pause while saving cancels even an explicit next call");
         session.Start(); session.CallStarted(); session.CancelAttempt(); Check(!session.AwaitingResult && !session.Running && !session.ResultSaved(), "cancelled phone launch is not counted and pauses the campaign");
         await using var db = new Db(new DbContextOptionsBuilder<Db>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var config = new ConfigurationManager(); config["App:TimeZoneId"] = "America/Lima";

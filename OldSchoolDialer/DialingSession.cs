@@ -11,11 +11,11 @@ public sealed class DialingSession
     public void Pause() => Running = false;
     public void CallStarted() => PendingAttemptId ??= Guid.NewGuid();
     public void CancelAttempt() { PendingAttemptId = null; Running = false; }
-    public bool ResultSaved()
+    public bool ResultSaved(bool? callNext = null)
     {
         if (!AwaitingResult) return false;
         PendingAttemptId = null;
-        return Running && AutoAdvance;
+        return Running && (callNext ?? AutoAdvance);
     }
     public void Reset() { Running = false; AutoAdvance = false; PendingAttemptId = null; }
 }
