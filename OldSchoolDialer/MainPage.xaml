@@ -1,34 +1,54 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
-<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="OldSchoolDialer.MainPage"
-             Title="OldSchool Ventas">
-    <ScrollView>
-        <VerticalStackLayout Padding="24" Spacing="14">
-            <Label Text="OLD SCHOOL VENTAS" FontSize="26" FontAttributes="Bold" />
-            <Label Text="Conecta la app con tus servicios" FontSize="14" />
-            <Entry x:Name="AuthUrlEntry" Placeholder="URL base de AuthService (https://servidor)" Keyboard="Url" />
-            <Entry x:Name="ApiUrlEntry" Placeholder="URL base de OldSchoolApi (https://servidor)" Keyboard="Url" />
-            <Entry x:Name="UsernameEntry" Placeholder="Usuario" />
-            <Entry x:Name="PasswordEntry" Placeholder="Contraseña" IsPassword="True" />
-            <Button x:Name="LoginButton" Text="Iniciar sesión" Clicked="OnLoginClicked" />
-            <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" />
-            <Label x:Name="MessageLabel" TextColor="Red" />
-            <VerticalStackLayout x:Name="QueuePanel" IsVisible="False" Spacing="12">
-                <Label x:Name="QueueSummaryLabel" FontAttributes="Bold" />
-                <Button Text="Cargar prospectos" Clicked="OnLoadQueueClicked" />
-                <Border x:Name="CurrentProspectPanel" IsVisible="False" Padding="16" Stroke="Gray" StrokeThickness="1">
-                    <VerticalStackLayout Spacing="12">
-                        <Label x:Name="ProspectNameLabel" FontSize="20" FontAttributes="Bold" />
-                        <Label x:Name="ProspectPhoneLabel" FontSize="18" />
-                        <Label x:Name="ProspectPositionLabel" />
-                        <Button x:Name="CallButton" Text="Abrir marcador" Clicked="OnCallClicked" />
-                        <Picker x:Name="OutcomePicker" Title="Resultado de la llamada" />
-                        <Editor x:Name="NotesEditor" Placeholder="Notas de la llamada" AutoSize="TextChanges" MaxLength="250" />
-                        <Button x:Name="SaveResultButton" Text="Guardar y continuar" Clicked="OnSaveResultClicked" />
-                    </VerticalStackLayout>
-                </Border>
-            </VerticalStackLayout>
-        </VerticalStackLayout>
-    </ScrollView>
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" x:Class="OldSchoolDialer.MainPage" Title="OldSchool · Llamadas" BackgroundColor="#F5F7FB">
+ <ScrollView><VerticalStackLayout Padding="20,28" Spacing="16">
+  <Label Text="OLDSCHOOL" TextColor="#2563EB" FontSize="12" FontAttributes="Bold" CharacterSpacing="3"/>
+  <Label Text="Tu próxima conversación" TextColor="#172338" FontSize="27" FontAttributes="Bold"/>
+  <Label Text="Prospectos de tu empresa, una llamada a la vez." TextColor="#64748B" FontSize="13"/>
+  <Border Stroke="#E2E8F0" BackgroundColor="White" Padding="18" StrokeShape="RoundRectangle 14">
+   <VerticalStackLayout Spacing="12" x:Name="LoginPanel">
+    <Label Text="Conectar mi cuenta" FontSize="18" FontAttributes="Bold"/>
+    <Entry x:Name="AuthUrlEntry" Placeholder="AuthService · https://servidor" Keyboard="Url"/>
+    <Entry x:Name="ApiUrlEntry" Placeholder="OldSchoolApi · https://servidor" Keyboard="Url"/>
+    <Button x:Name="CompaniesButton" Text="Cargar empresas" Clicked="OnCompaniesClicked"/>
+    <Picker x:Name="CompanyPicker" Title="Selecciona tu empresa" ItemDisplayBinding="{Binding Name}"/>
+    <Entry x:Name="UsernameEntry" Placeholder="Usuario" ReturnType="Next"/>
+    <Entry x:Name="PasswordEntry" Placeholder="Contraseña" IsPassword="True"/>
+    <Button x:Name="LoginButton" Text="Iniciar sesión" Clicked="OnLoginClicked" BackgroundColor="#2563EB" TextColor="White"/>
+   </VerticalStackLayout>
+  </Border>
+  <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" Color="#2563EB"/>
+  <Label x:Name="MessageLabel" TextColor="#BE123C" FontSize="13"/>
+  <VerticalStackLayout x:Name="QueuePanel" IsVisible="False" Spacing="16">
+   <Grid ColumnDefinitions="*,Auto"><Label x:Name="SessionLabel" VerticalOptions="Center" FontAttributes="Bold"/><Button Grid.Column="1" Text="Salir" Clicked="OnLogoutClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/></Grid>
+   <Border Stroke="#E2E8F0" BackgroundColor="White" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="10">
+    <Label Text="Preparar mi tanda" FontSize="18" FontAttributes="Bold"/>
+    <Picker x:Name="FilterPicker" Title="Estado de llamadas"/>
+    <Entry x:Name="SearchEntry" Placeholder="Buscar celular o nombre"/>
+    <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><VerticalStackLayout><Label Text="Intentos mínimos" FontSize="11"/><Entry x:Name="MinCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout><VerticalStackLayout Grid.Column="1"><Label Text="Intentos máximos" FontSize="11"/><Entry x:Name="MaxCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout></Grid>
+    <HorizontalStackLayout Spacing="8"><CheckBox x:Name="DatesCheck"/><Label Text="Filtrar por fecha de creación" VerticalOptions="Center"/></HorizontalStackLayout>
+    <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><DatePicker x:Name="FromPicker"/><DatePicker x:Name="ToPicker" Grid.Column="1"/></Grid>
+    <Picker x:Name="BatchPicker" Title="Tamaño de la tanda"/>
+    <Button x:Name="LoadButton" Text="Aplicar filtros y cargar" Clicked="OnLoadQueueClicked"/>
+   </VerticalStackLayout></Border>
+   <Border Stroke="#BFDBFE" BackgroundColor="#EFF6FF" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="10">
+    <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label x:Name="LockLabel" Text="🔓 Avance manual" FontAttributes="Bold"/><Label Text="Con candado: al guardar, llama al siguiente." FontSize="11" TextColor="#64748B"/></VerticalStackLayout><Switch x:Name="AutomaticSwitch" Grid.Column="1" OnColor="#2563EB" Toggled="OnAutomaticToggled"/></Grid>
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10"><Button x:Name="StartButton" Text="Iniciar llamadas masivas" Clicked="OnStartClicked" BackgroundColor="#2563EB"/><Button x:Name="PauseButton" Grid.Column="1" Text="Pausar" Clicked="OnPauseClicked" BackgroundColor="#BE123C"/></Grid>
+   </VerticalStackLayout></Border>
+   <Label x:Name="QueueSummaryLabel" TextColor="#64748B"/>
+   <Border x:Name="CurrentProspectPanel" IsVisible="False" Stroke="#E2E8F0" BackgroundColor="White" Padding="20" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="14">
+    <Label x:Name="ProspectPositionLabel" TextColor="#64748B" FontSize="11"/>
+    <Label x:Name="ProspectNameLabel" FontSize="23" FontAttributes="Bold"/>
+    <Label x:Name="ProspectPhoneLabel" FontSize="24" TextColor="#2563EB"/>
+    <Label x:Name="CallCountLabel" FontAttributes="Bold" TextColor="#7C3AED"/>
+    <Label x:Name="PreviousOutcomeLabel" FontSize="12" TextColor="#64748B"/>
+    <Button x:Name="CallButton" Text="Llamar a este prospecto" Clicked="OnCallClicked" BackgroundColor="#059669"/>
+    <Picker x:Name="OutcomePicker" Title="¿Cómo fue la llamada?" SelectedIndexChanged="OnOutcomeChanged"/>
+    <VerticalStackLayout x:Name="CallbackPanel" IsVisible="False"><Label Text="Volver a llamar (hora de Perú)" FontSize="12"/><DatePicker x:Name="CallbackDate"/><TimePicker x:Name="CallbackTime" Format="HH:mm"/></VerticalStackLayout>
+    <Editor x:Name="NotesEditor" Placeholder="Notas de la conversación" AutoSize="TextChanges" MaxLength="250"/>
+    <Button x:Name="SaveResultButton" Text="Guardar resultado" Clicked="OnSaveResultClicked"/>
+    <Button x:Name="CancelAttemptButton" Text="Cancelar intento sin contarlo" Clicked="OnCancelAttemptClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/>
+   </VerticalStackLayout></Border>
+   <Button x:Name="NextBatchButton" Text="Cargar siguiente tanda" Clicked="OnNextBatchClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/>
+  </VerticalStackLayout>
+ </VerticalStackLayout></ScrollView>
 </ContentPage>

@@ -17,9 +17,15 @@ public class ApiDbContext(DbContextOptions<ApiDbContext> options) : DbContext(op
     public DbSet<AppRole> Roles => Set<AppRole>();
     public DbSet<AppUserRole> UserRoles => Set<AppUserRole>();
 
+    public DbSet<LeadCallAttempt> LeadCallAttempts => Set<LeadCallAttempt>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<LeadCallAttempt>().HasIndex(x => new { x.CompanyId, x.RecordId, x.CreatedAt });
+        builder.Entity<LeadCallAttempt>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<LeadCallAttempt>().Property(x => x.NextCallAt).HasColumnType("timestamp without time zone");
+        builder.Entity<LeadCallAttempt>().HasOne<CustomerRecord>().WithMany().HasForeignKey(x => x.RecordId).OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<AppUser>().ToTable("AspNetUsers");
         builder.Entity<AppRole>().ToTable("AspNetRoles");

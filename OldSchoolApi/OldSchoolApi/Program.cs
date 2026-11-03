@@ -82,6 +82,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+await using (var scope = app.Services.CreateAsyncScope())
+    await LeadCallsSchema.EnsureAsync(scope.ServiceProvider.GetRequiredService<ApiDbContext>());
 
 var configuredPaymentProofsPath = builder.Configuration["Storage:PaymentProofsPath"]?.Trim();
 var paymentProofsPath = !string.IsNullOrWhiteSpace(configuredPaymentProofsPath) && Path.IsPathRooted(configuredPaymentProofsPath)

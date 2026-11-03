@@ -1,239 +1,158 @@
-﻿using System.Net.Http.Headers;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 
 namespace OldSchoolDialer;
 
 public partial class MainPage : ContentPage
 {
-    private readonly HttpClient httpClient = new();
-    private readonly List<Prospect> prospects = [];
-    private string? token;
-    private Uri? apiUri;
-    private int currentIndex;
-    private bool dialerOpened;
-    private static readonly string[] Outcomes = ["Contestó", "No contestó", "Ocupado", "Número incorrecto", "Volver a llamar"];
-
+    readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    readonly DialingSession session = new();
+    readonly List<Prospect> prospects = [];
+    readonly string[] filters = ["Sin llamar", "Ya llamados", "Volver a llamar (pendientes)", "Todos"];
+    readonly string[] filterValues = ["uncalled", "called", "callback", "all"];
+    readonly string[] outcomes = ["Contestó", "No contestó", "Ocupado", "Número incorrecto", "Volver a llamar"];
+    string? token; Uri? apiUri; int currentIndex, cursor; bool busy;
+    string? currentQuery;
     public MainPage()
     {
         InitializeComponent();
         AuthUrlEntry.Text = Preferences.Default.Get("auth_url", "");
         ApiUrlEntry.Text = Preferences.Default.Get("api_url", "");
-        OutcomePicker.ItemsSource = Outcomes;
+        UsernameEntry.Text = Preferences.Default.Get("username", "");
+        FilterPicker.ItemsSource = filters; FilterPicker.SelectedIndex = 0;
+        BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
+        OutcomePicker.ItemsSource = outcomes;
+        FromPicker.Date = DateTime.Today.AddMonths(-1); ToPicker.Date = DateTime.Today;
+        CallbackDate.Date = DateTime.Today.AddDays(1); CallbackTime.Time = new TimeSpan(10, 0, 0);
     }
-
-    private async void OnLoginClicked(object? sender, EventArgs e)
+    static Uri Https(string? value)
     {
-        if (!Uri.TryCreate(AuthUrlEntry.Text?.Trim(), UriKind.Absolute, out var authUri)
-            || !Uri.TryCreate(ApiUrlEntry.Text?.Trim(), UriKind.Absolute, out apiUri)
-            || string.IsNullOrWhiteSpace(UsernameEntry.Text)
-            || string.IsNullOrWhiteSpace(PasswordEntry.Text))
-        {
-            MessageLabel.Text = "Completa URLs válidas, usuario y contraseña.";
-            return;
-        }
-
-        if (authUri.Scheme != Uri.UriSchemeHttps || apiUri.Scheme != Uri.UriSchemeHttps)
-        {
-            MessageLabel.Text = "Usa URLs HTTPS para proteger las credenciales.";
-            return;
-        }
-
-        await SetBusyAsync(true);
-        try
-        {
-            using var response = await httpClient.PostAsJsonAsync(CombineUrl(authUri, "api/auth/login"), new
-            {
-                username = UsernameEntry.Text.Trim(),
-                password = PasswordEntry.Text
-            });
-            if (!response.IsSuccessStatusCode)
-            {
-                MessageLabel.Text = "No se pudo iniciar sesión. Revisa tus credenciales y la URL de AuthService.";
-                return;
-            }
-
-            var login = await response.Content.ReadFromJsonAsync<LoginResponse>();
-            if (string.IsNullOrWhiteSpace(login?.Token))
-            {
-                MessageLabel.Text = "El servicio de autenticación no devolvió un token.";
-                return;
-            }
-
-            token = login.Token;
-            Preferences.Default.Set("auth_url", authUri.ToString().TrimEnd('/'));
-            Preferences.Default.Set("api_url", apiUri!.ToString().TrimEnd('/'));
-            AuthUrlEntry.IsEnabled = false;
-            ApiUrlEntry.IsEnabled = false;
-            UsernameEntry.IsEnabled = false;
-            PasswordEntry.IsEnabled = false;
-            LoginButton.IsVisible = false;
-            QueuePanel.IsVisible = true;
-            MessageLabel.TextColor = Colors.Green;
-            MessageLabel.Text = $"Sesión iniciada: {login.Username ?? UsernameEntry.Text}";
-            await LoadQueueAsync();
-        }
-        catch (Exception ex)
-        {
-            MessageLabel.TextColor = Colors.Red;
-            MessageLabel.Text = $"Error de conexión: {ex.Message}";
-        }
-        finally
-        {
-            await SetBusyAsync(false);
-        }
+        if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new InvalidOperationException("Configura URLs HTTPS válidas.");
+        return uri;
     }
-
-    private async void OnLoadQueueClicked(object? sender, EventArgs e) => await LoadQueueAsync();
-
-    private async Task LoadQueueAsync()
+    static string Url(Uri root, string path) => root.ToString().TrimEnd('/') + "/" + path;
+    void Message(string text, bool error = false) { MessageLabel.Text = text; MessageLabel.TextColor = error ? Colors.Firebrick : Color.FromArgb("#047857"); }
+    async Task RunAsync(Func<Task> action)
     {
-        if (apiUri is null || string.IsNullOrWhiteSpace(token))
-        {
-            return;
-        }
-
-        await SetBusyAsync(true);
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, CombineUrl(apiUri, "api/records/prospect-calls/queue"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            using var response = await httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            prospects.Clear();
-            prospects.AddRange(await response.Content.ReadFromJsonAsync<List<Prospect>>() ?? []);
-            currentIndex = 0;
-            MessageLabel.Text = string.Empty;
-            ShowCurrentProspect();
-        }
-        catch (Exception ex)
-        {
-            MessageLabel.TextColor = Colors.Red;
-            MessageLabel.Text = $"No se pudo cargar la cola: {ex.Message}";
-        }
-        finally
-        {
-            await SetBusyAsync(false);
-        }
+        if (busy) return;
+        busy = true; Controls();
+        try { await action(); }
+        catch (Exception ex) { session.Pause(); Message(ex.Message, true); }
+        finally { busy = false; Controls(); }
     }
-
-    private async void OnCallClicked(object? sender, EventArgs e)
+    void Controls()
     {
-        if (currentIndex >= prospects.Count)
-        {
-            return;
-        }
-
-        try
-        {
-            var number = prospects[currentIndex].Cellphone;
-            await Launcher.Default.OpenAsync(new Uri($"tel:{Uri.EscapeDataString(number)}"));
-            dialerOpened = true;
-            MessageLabel.TextColor = Colors.Green;
-            MessageLabel.Text = "Completa la llamada en el marcador y vuelve para registrar el resultado.";
-        }
-        catch (Exception ex)
-        {
-            MessageLabel.TextColor = Colors.Red;
-            MessageLabel.Text = $"No se pudo abrir el marcador: {ex.Message}";
-        }
+        BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
+        LoginButton.IsEnabled = CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        StartButton.IsEnabled = CallButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
+        SaveResultButton.IsEnabled = !busy && session.AwaitingResult;
+        CancelAttemptButton.IsVisible = session.AwaitingResult;
+        CancelAttemptButton.IsEnabled = !busy;
+        // Pausing is always available, including while a save is in flight.
+        SaveResultButton.Text = session.Running && session.AutoAdvance ? "Guardar y llamar al siguiente" : "Guardar resultado";
     }
-
-    private async void OnSaveResultClicked(object? sender, EventArgs e)
+    async Task EnsureAsync(HttpResponseMessage response)
     {
-        if (currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome)
-        {
-            MessageLabel.TextColor = Colors.Red;
-            MessageLabel.Text = "Selecciona el resultado de la llamada.";
-            return;
-        }
-
-        if (!dialerOpened)
-        {
-            var confirm = await DisplayAlert("Confirmar llamada", "No se abrió el marcador desde la app. ¿Quieres guardar el resultado de todos modos?", "Guardar", "Cancelar");
-            if (!confirm)
-            {
-                return;
-            }
-        }
-
-        await SetBusyAsync(true);
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Post,
-                CombineUrl(apiUri!, $"api/records/{prospects[currentIndex].Id}/prospect-call-result"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            request.Content = JsonContent.Create(new { outcome, notes = NotesEditor.Text });
-            using var response = await httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-            currentIndex++;
-            dialerOpened = false;
-            OutcomePicker.SelectedItem = null;
-            NotesEditor.Text = string.Empty;
-            MessageLabel.TextColor = Colors.Green;
-            MessageLabel.Text = "Resultado guardado.";
-            ShowCurrentProspect();
-        }
-        catch (Exception ex)
-        {
-            MessageLabel.TextColor = Colors.Red;
-            MessageLabel.Text = $"No se pudo guardar el resultado: {ex.Message}";
-        }
-        finally
-        {
-            await SetBusyAsync(false);
-        }
+        if (response.StatusCode == HttpStatusCode.Unauthorized) { session.Pause(); throw new InvalidOperationException("La sesión venció. Sal y vuelve a iniciar sesión; no se avanzó la cola."); }
+        if (response.IsSuccessStatusCode) return;
+        var text = await response.Content.ReadAsStringAsync();
+        throw new InvalidOperationException($"El servidor respondió {(int)response.StatusCode}: {text[..Math.Min(300, text.Length)]}");
     }
-
-    private void ShowCurrentProspect()
+    HttpRequestMessage Request(HttpMethod method, string path)
     {
-        QueueSummaryLabel.Text = $"{prospects.Count} prospectos con teléfono válido";
-        var hasCurrent = currentIndex < prospects.Count;
-        CurrentProspectPanel.IsVisible = hasCurrent;
-        if (!hasCurrent)
-        {
-            QueueSummaryLabel.Text = prospects.Count == 0
-                ? "No hay prospectos con teléfono válido."
-                : "Has terminado la cola de prospectos.";
-            return;
-        }
-
-        var prospect = prospects[currentIndex];
-        ProspectNameLabel.Text = string.IsNullOrWhiteSpace(prospect.NameOrReference) ? "Prospecto" : prospect.NameOrReference;
-        ProspectPhoneLabel.Text = prospect.Cellphone;
-        ProspectPositionLabel.Text = $"Prospecto {currentIndex + 1} de {prospects.Count}";
+        if (apiUri is null || token is null) throw new InvalidOperationException("Inicia sesión primero.");
+        var request = new HttpRequestMessage(method, Url(apiUri, path)); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return request;
     }
-
-    private async Task SetBusyAsync(bool isBusy)
+    async void OnCompaniesClicked(object? sender, EventArgs e) => await RunAsync(async () =>
     {
-        BusyIndicator.IsVisible = isBusy;
-        BusyIndicator.IsRunning = isBusy;
-        LoginButton.IsEnabled = !isBusy;
-        CallButton.IsEnabled = !isBusy;
-        SaveResultButton.IsEnabled = !isBusy;
-        await Task.CompletedTask;
-    }
-
-    private static string CombineUrl(Uri baseUri, string path) => $"{baseUri.ToString().TrimEnd('/')}/{path}";
-
-    private sealed class LoginResponse
+        using var response = await http.GetAsync(Url(Https(AuthUrlEntry.Text), "api/auth/companies")); await EnsureAsync(response);
+        var companies = await response.Content.ReadFromJsonAsync<List<Company>>() ?? [];
+        CompanyPicker.ItemsSource = companies;
+        if (companies.Count == 1) CompanyPicker.SelectedIndex = 0;
+        Message(companies.Count == 0 ? "El servidor no devolvió empresas activas." : "Selecciona tu empresa e inicia sesión.");
+    });
+    async void OnLoginClicked(object? sender, EventArgs e) => await RunAsync(async () =>
     {
-        [JsonPropertyName("token")]
-        public string? Token { get; set; }
-
-        [JsonPropertyName("username")]
-        public string? Username { get; set; }
-    }
-
-    private sealed class Prospect
+        if (CompanyPicker.SelectedItem is not Company company || string.IsNullOrWhiteSpace(UsernameEntry.Text) || string.IsNullOrWhiteSpace(PasswordEntry.Text)) throw new InvalidOperationException("Selecciona empresa, usuario y contraseña.");
+        var authUri = Https(AuthUrlEntry.Text); apiUri = Https(ApiUrlEntry.Text);
+        using var response = await http.PostAsJsonAsync(Url(authUri, "api/auth/login"), new { username = UsernameEntry.Text.Trim(), password = PasswordEntry.Text, companyId = company.Id });
+        await EnsureAsync(response); var login = await response.Content.ReadFromJsonAsync<Login>() ?? throw new InvalidOperationException("Respuesta de sesión inválida.");
+        if (string.IsNullOrWhiteSpace(login.Token) || login.CompanyId != company.Id) throw new InvalidOperationException("La cuenta no tiene la empresa seleccionada.");
+        token = login.Token; PasswordEntry.Text = "";
+        Preferences.Default.Set("auth_url", authUri.ToString().TrimEnd('/')); Preferences.Default.Set("api_url", apiUri.ToString().TrimEnd('/')); Preferences.Default.Set("username", UsernameEntry.Text.Trim());
+        LoginPanel.IsVisible = false; QueuePanel.IsVisible = true; SessionLabel.Text = $"{login.CompanyName ?? company.Name} · {login.Username}";
+        cursor = 0; session.Reset(); AutomaticSwitch.IsToggled = false; currentQuery = BuildQuery(); await LoadAsync();
+    });
+    string BuildQuery()
     {
-        [JsonPropertyName("id")]
-        public int Id { get; set; }
-
-        [JsonPropertyName("cellphone")]
-        public string Cellphone { get; set; } = string.Empty;
-
-        [JsonPropertyName("nameOrReference")]
-        public string? NameOrReference { get; set; }
+        var take = new[] { 50, 100, 250, 500 }[Math.Max(0, BatchPicker.SelectedIndex)];
+        var query = $"callFilter={filterValues[Math.Max(0, FilterPicker.SelectedIndex)]}&take={take}&search={Uri.EscapeDataString(SearchEntry.Text?.Trim() ?? "")}";
+        foreach (var (name, text) in new[] { ("minAttempts", MinCallsEntry.Text), ("maxAttempts", MaxCallsEntry.Text) })
+            if (!string.IsNullOrWhiteSpace(text)) { if (!int.TryParse(text, out var value) || value < 0) throw new InvalidOperationException("Los intentos deben ser enteros positivos."); query += $"&{name}={value}"; }
+        if (DatesCheck.IsChecked) query += $"&fromDate={FromPicker.Date:yyyy-MM-dd}&toDate={ToPicker.Date:yyyy-MM-dd}";
+        return query;
     }
+    async Task LoadAsync()
+    {
+        if (session.AwaitingResult) throw new InvalidOperationException("Guarda el resultado pendiente antes de cambiar la cola.");
+        session.Pause();
+        using var request = Request(HttpMethod.Get, $"api/records/prospect-calls/queue?{currentQuery}&afterId={cursor}");
+        using var response = await http.SendAsync(request); await EnsureAsync(response);
+        var loaded = await response.Content.ReadFromJsonAsync<List<Prospect>>() ?? [];
+        if (response.Headers.TryGetValues("X-Next-Cursor", out var values) && int.TryParse(values.FirstOrDefault(), out var next)) cursor = next;
+        prospects.Clear(); prospects.AddRange(loaded); currentIndex = 0; ShowCurrent(); Message(loaded.Count == 0 ? "Sin prospectos en esta tanda. Puedes cargar la siguiente o cambiar filtros." : "Tanda lista. Activa el candado si deseas avanzar automáticamente.");
+    }
+    async void OnLoadQueueClicked(object? sender, EventArgs e) => await RunAsync(async () => { if (session.AwaitingResult) throw new InvalidOperationException("Guarda el resultado pendiente."); currentQuery = BuildQuery(); cursor = 0; await LoadAsync(); });
+    async void OnNextBatchClicked(object? sender, EventArgs e) => await RunAsync(LoadAsync);
+    async Task CallAsync()
+    {
+        if (currentIndex >= prospects.Count || session.AwaitingResult) return;
+        var campaignCall = session.Running;
+        await PhoneCalls.StartAsync(prospects[currentIndex].Cellphone, () => !campaignCall || session.Running);
+        session.CallStarted(); Message("Al terminar la llamada, vuelve aquí, elige el resultado y guárdalo.");
+    }
+    async void OnStartClicked(object? sender, EventArgs e) => await RunAsync(async () => { session.Start(); await CallAsync(); });
+    async void OnCallClicked(object? sender, EventArgs e) => await RunAsync(CallAsync);
+    void OnPauseClicked(object? sender, EventArgs e) { session.Pause(); Message("Tanda pausada. El resultado pendiente se conserva."); Controls(); }
+    async void OnCancelAttemptClicked(object? sender, EventArgs e)
+    {
+        if (busy || !session.AwaitingResult) return;
+        if (!await DisplayAlertAsync("Cancelar intento", "Úsalo si no llegaste a realizar la llamada. No se guardará ni se contará el intento.", "Cancelar intento", "Volver")) return;
+        session.CancelAttempt(); OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; Message("Intento cancelado. La tanda está pausada."); Controls();
+    }
+    void OnAutomaticToggled(object? sender, ToggledEventArgs e) { session.AutoAdvance = e.Value; LockLabel.Text = e.Value ? "🔒 Avance automático activado" : "🔓 Avance manual"; Controls(); }
+    void OnOutcomeChanged(object? sender, EventArgs e) => CallbackPanel.IsVisible = OutcomePicker.SelectedItem as string == "Volver a llamar";
+    async void OnSaveResultClicked(object? sender, EventArgs e) => await RunAsync(async () =>
+    {
+        if (!session.AwaitingResult || currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome) throw new InvalidOperationException("Elige el resultado de la llamada pendiente.");
+        DateTime? nextCallAt = outcome == "Volver a llamar" ? DateTime.SpecifyKind(CallbackDate.Date.GetValueOrDefault().Date + CallbackTime.Time.GetValueOrDefault(), DateTimeKind.Unspecified) : null;
+        using var request = Request(HttpMethod.Post, $"api/records/{prospects[currentIndex].Id}/prospect-call-result");
+        request.Content = JsonContent.Create(new { requestId = session.PendingAttemptId, outcome, notes = NotesEditor.Text, nextCallAt });
+        using var response = await http.SendAsync(request); await EnsureAsync(response);
+        var advance = session.ResultSaved(); currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
+        Message("Resultado guardado. " + (advance ? "Llamando al siguiente…" : "Elige cuándo llamar al siguiente."));
+        if (advance && session.Running && session.AutoAdvance && currentIndex < prospects.Count) await CallAsync();
+        if (currentIndex >= prospects.Count) { session.Pause(); Message("Tanda terminada. Carga la siguiente para continuar."); }
+    });
+    void ShowCurrent()
+    {
+        QueueSummaryLabel.Text = $"{prospects.Count} prospectos en esta tanda · {Math.Min(currentIndex, prospects.Count)} completados";
+        CurrentProspectPanel.IsVisible = currentIndex < prospects.Count;
+        if (!CurrentProspectPanel.IsVisible) return;
+        var p = prospects[currentIndex]; ProspectNameLabel.Text = string.IsNullOrWhiteSpace(p.NameOrReference) ? "Prospecto" : p.NameOrReference; ProspectPhoneLabel.Text = p.Cellphone;
+        ProspectPositionLabel.Text = $"PROSPECTO {currentIndex + 1} DE {prospects.Count}";
+        CallCountLabel.Text = p.CallCount == 0 ? "Sin llamar" : $"Se llamó {p.CallCount} {(p.CallCount == 1 ? "vez" : "veces")}";
+        PreviousOutcomeLabel.Text = p.LastOutcome is null ? "Aún no tiene intentos registrados." : $"Último resultado: {p.LastOutcome} · {p.LastCallAt:dd/MM HH:mm}";
+        Controls();
+    }
+    async void OnLogoutClicked(object? sender, EventArgs e)
+    {
+        if (busy) return;
+        if (session.AwaitingResult && !await DisplayAlertAsync("Resultado pendiente", "¿Salir sin guardar el resultado de esta llamada?", "Salir", "Cancelar")) return;
+        session.Reset(); token = null; prospects.Clear(); QueuePanel.IsVisible = false; LoginPanel.IsVisible = true; AutomaticSwitch.IsToggled = false; Message("Sesión cerrada.");
+    }
+    public sealed class Company { public int Id { get; set; } public string Name { get; set; } = ""; }
+    sealed class Login { public string? Token { get; set; } public string? Username { get; set; } public int? CompanyId { get; set; } public string? CompanyName { get; set; } }
+    sealed class Prospect { public int Id { get; set; } public string Cellphone { get; set; } = ""; public string? NameOrReference { get; set; } public int CallCount { get; set; } public string? LastOutcome { get; set; } public DateTime? LastCallAt { get; set; } }
 }

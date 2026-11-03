@@ -16,11 +16,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CustomerRecordPayment> CustomerRecordPayments => Set<CustomerRecordPayment>();
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<CashRegister> CashRegisters => Set<CashRegister>();
+    public DbSet<LeadCallAttempt> LeadCallAttempts => Set<LeadCallAttempt>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<LeadCallAttempt>().HasIndex(x => new { x.CompanyId, x.RecordId, x.CreatedAt });
+        builder.Entity<LeadCallAttempt>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<LeadCallAttempt>().Property(x => x.NextCallAt).HasColumnType("timestamp without time zone");
+        builder.Entity<LeadCallAttempt>().HasOne<CustomerRecord>().WithMany().HasForeignKey(x => x.RecordId).OnDelete(DeleteBehavior.Cascade);
         builder.Entity<CashRegister>().HasIndex(x => x.CompanyId).IsUnique().HasFilter("\"ClosedAt\" IS NULL");
         builder.Entity<CashRegister>().Property(x => x.OpenedAt).HasColumnType("timestamp without time zone");
         builder.Entity<CashRegister>().Property(x => x.ClosedAt).HasColumnType("timestamp without time zone").IsConcurrencyToken();

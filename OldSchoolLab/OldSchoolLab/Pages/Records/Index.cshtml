@@ -374,6 +374,10 @@
                     <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                     <td class="record-phone">
                         <div>@item.Cellphone</div>
+                        @if (Model.CallCounts.TryGetValue(item.Id, out var callCount) && callCount > 0)
+                        {
+                            <div class="small text-muted mt-1">Se llamó @callCount @(callCount == 1 ? "vez" : "veces")</div>
+                        }
                         @if (Model.PurchaseNumbers.TryGetValue(item.Id, out var purchaseNumber) && purchaseNumber > 1)
                         {
                             <span class="repeat-purchase-badge" title="Nuevo registro después de más de 30 días desde el anterior">@(purchaseNumber).ª compra</span>

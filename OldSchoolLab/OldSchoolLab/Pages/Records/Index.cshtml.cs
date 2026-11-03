@@ -42,6 +42,7 @@ public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : Pag
     public IReadOnlyDictionary<int, int> PurchaseNumbers { get; private set; } = new Dictionary<int, int>();
     public CashRegister? OpenCashRegister { get; private set; }
     public CashTotals? CurrentCashTotals { get; private set; }
+    public IReadOnlyDictionary<int, int> CallCounts { get; private set; } = new Dictionary<int, int>();
 
     public bool CanEdit => User.IsInRole("Gerencia") || User.IsInRole("Gestor") || User.IsInRole("Vendedor");
     public bool CanDelete => User.IsInRole("Gerencia");
@@ -185,6 +186,9 @@ public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : Pag
             .ToListAsync();
 
         TotalFilteredRecords = Records.Count;
+        var visibleIds = Records.Select(x => x.Id).ToArray();
+        CallCounts = await db.LeadCallAttempts.AsNoTracking().Where(x => visibleIds.Contains(x.RecordId))
+            .GroupBy(x => x.RecordId).Select(x => new { Id = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Id, x => x.Count);
         var visiblePhones = Records.Select(x => OldSchool.Sales.RepeatPurchasePolicy.NormalizePhone(x.Cellphone)).Distinct().ToList();
         if (visiblePhones.Count > 0)
         {

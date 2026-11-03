@@ -1,4 +1,5 @@
 extern alias Web;
+extern alias Api;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +41,16 @@ static class PostgreSqlCashRegression
             var second = await service.OpenAsync(1, actor);
             if (second.Id == box.Id) throw new Exception("Reopen did not create a new period");
             Console.WriteLine("PASS real PostgreSQL retry strategy: open, expense, close and reopen in isolated schema");
+            var status = new Web::OldSchoolLab.Models.StatusCatalog { CompanyId = 1, Name = "Prospecto" };
+            var lead = new Web::OldSchoolLab.Models.CustomerRecord { CompanyId = 1, StatusCatalog = status, Cellphone = "900000001", NameOrReference = "Isolated lead" };
+            db.CustomerRecords.Add(lead); await db.SaveChangesAsync();
+            await using var apiDb = new Api::OldSchoolApi.Data.ApiDbContext(new DbContextOptionsBuilder<Api::OldSchoolApi.Data.ApiDbContext>().UseNpgsql(isolated.ConnectionString).Options);
+            await Api::OldSchoolApi.Services.LeadCallsSchema.EnsureAsync(apiDb);
+            var calls = new Api::OldSchoolApi.Controllers.LeadCallsController(apiDb, config) { ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = actor } } };
+            var saved = await calls.Save(lead.Id, new Api::OldSchoolApi.Controllers.LeadCallsController.ResultRequest { RequestId = Guid.NewGuid(), Outcome = "No contestó" }, default);
+            var queue = (Microsoft.AspNetCore.Mvc.ObjectResult)await calls.Queue(default, "called");
+            if (System.Text.Json.JsonSerializer.SerializeToElement(queue.Value).GetArrayLength() != 1) throw new Exception("PostgreSQL call history/queue regression failed");
+            Console.WriteLine("PASS real PostgreSQL: additive call schema, saved result and filtered queue projection in isolated schema");
         }
         finally
         {

@@ -135,6 +135,7 @@ await using (var db = new ApiDb(new DbContextOptionsBuilder<ApiDb>().UseInMemory
     var otherCompany=(ObjectResult)await controller.Create(new Controller.CreateRecordRequest { Celular="953342737",CompanyId=2 });
     Check(otherCompany.StatusCode==201 && JsonSerializer.SerializeToElement(otherCompany.Value).GetProperty("purchaseNumber").GetInt32()==1,"same phone in another company starts its own history");
 }
+await LeadCallChecks.RunAsync();
 Console.WriteLine("All business-rule checks passed. No production database or external OCR used.");
 
 sealed class FakeFactory : IHttpClientFactory
