@@ -1,13 +1,13 @@
-# OldSchool Ventas 1.1: cola nativa de llamadas
+# OldSchool Ventas 1.2: cola nativa de llamadas
 
 Se reutiliza el proyecto Android .NET MAUI `OldSchoolDialer`, con el mismo
 identificador de app `com.oldschool.ventas`.
 
 ## Flujo de uso
 
-1. Configurar las URLs HTTPS publicadas de AuthService y OldSchoolApi. En un
-   telefono, `localhost` es el propio telefono, no el PC.
-2. Cargar empresas, seleccionar la empresa e iniciar sesion. AuthService valida
+1. Abrir la app: carga automaticamente las empresas, sin campos de enlaces.
+   Los servicios se configuran en `OldSchoolDialer/ServiceEndpoints.cs`.
+2. Seleccionar la empresa e iniciar sesion. AuthService valida
    la pertenencia y emite el JWT; la API toma la empresa exclusivamente del JWT.
 3. Elegir Sin llamar, Ya llamados, Volver a llamar pendientes o Todos; filtrar
    por nombre/celular, fecha de creacion y numero minimo/maximo de intentos.
@@ -56,6 +56,23 @@ llamadas pendientes cuyo horario ya llego. Las fechas de callback se envian
 sin offset, expresadas en hora de Peru.
 
 ## Despliegue y validacion
+
+La version 1.2 entregada para el emulador usa los servicios locales confirmados:
+AuthService `https://localhost:64491/` y OldSchoolApi `https://localhost:7254/`.
+Mantenerlos abiertos en Visual Studio. Al reiniciar el emulador, restablecer:
+
+```powershell
+adb reverse tcp:64491 tcp:64491
+adb reverse tcp:7254 tcp:7254
+```
+
+En DEBUG, se acepta exclusivamente la huella SHA256 del certificado publico
+de desarrollo verificado de este PC, solo para localhost en esos dos puertos
+y solo ante errores de cadena de confianza. No se acepta cualquier certificado.
+RELEASE conserva la validacion TLS normal. Si se regenera el certificado local,
+actualizar su huella y reconstruir. Para telefonos fuera del emulador, configurar
+las URLs publicadas con certificados validos antes de distribuir esa version.
+Los ensamblados se incluyen en la APK para permitir instalarla sin Visual Studio.
 
 Reiniciar/desplegar API y web antes de usar la nueva APK. Ambos crean de forma
 idempotente la tabla LeadCallAttempts y su indice. No se modifican pagos ni

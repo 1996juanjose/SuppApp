@@ -6,10 +6,9 @@
   <Label Text="Prospectos de tu empresa, una llamada a la vez." TextColor="#64748B" FontSize="13"/>
   <Border Stroke="#E2E8F0" BackgroundColor="White" Padding="18" StrokeShape="RoundRectangle 14">
    <VerticalStackLayout Spacing="12" x:Name="LoginPanel">
-    <Label Text="Conectar mi cuenta" FontSize="18" FontAttributes="Bold"/>
-    <Entry x:Name="AuthUrlEntry" Placeholder="AuthService · https://servidor" Keyboard="Url"/>
-    <Entry x:Name="ApiUrlEntry" Placeholder="OldSchoolApi · https://servidor" Keyboard="Url"/>
-    <Button x:Name="CompaniesButton" Text="Cargar empresas" Clicked="OnCompaniesClicked"/>
+    <Label Text="Iniciar sesión" FontSize="18" FontAttributes="Bold"/>
+    <Button x:Name="CompaniesButton" Text="Reintentar conexión" IsVisible="False" Clicked="OnCompaniesClicked"/>
+    <Label Text="Empresa" FontSize="12" TextColor="#64748B"/>
     <Picker x:Name="CompanyPicker" Title="Selecciona tu empresa" ItemDisplayBinding="{Binding Name}"/>
     <Entry x:Name="UsernameEntry" Placeholder="Usuario" ReturnType="Next"/>
     <Entry x:Name="PasswordEntry" Placeholder="Contraseña" IsPassword="True"/>

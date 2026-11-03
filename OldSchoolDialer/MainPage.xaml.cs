@@ -6,7 +6,7 @@ namespace OldSchoolDialer;
 
 public partial class MainPage : ContentPage
 {
-    readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    readonly HttpClient http = ServiceEndpoints.CreateClient();
     readonly DialingSession session = new();
     readonly List<Prospect> prospects = [];
     readonly string[] filters = ["Sin llamar", "Ya llamados", "Volver a llamar (pendientes)", "Todos"];
@@ -17,8 +17,6 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
-        AuthUrlEntry.Text = Preferences.Default.Get("auth_url", "");
-        ApiUrlEntry.Text = Preferences.Default.Get("api_url", "");
         UsernameEntry.Text = Preferences.Default.Get("username", "");
         FilterPicker.ItemsSource = filters; FilterPicker.SelectedIndex = 0;
         BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
@@ -26,10 +24,12 @@ public partial class MainPage : ContentPage
         FromPicker.Date = DateTime.Today.AddMonths(-1); ToPicker.Date = DateTime.Today;
         CallbackDate.Date = DateTime.Today.AddDays(1); CallbackTime.Time = new TimeSpan(10, 0, 0);
     }
-    static Uri Https(string? value)
+    bool companiesLoaded;
+    protected override async void OnAppearing()
     {
-        if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo)) throw new InvalidOperationException("Configura URLs HTTPS válidas.");
-        return uri;
+        base.OnAppearing();
+        if (!companiesLoaded && token is null && !busy)
+            await RunAsync(LoadCompaniesAsync);
     }
     static string Url(Uri root, string path) => root.ToString().TrimEnd('/') + "/" + path;
     void Message(string text, bool error = false) { MessageLabel.Text = text; MessageLabel.TextColor = error ? Colors.Firebrick : Color.FromArgb("#047857"); }
@@ -44,7 +44,8 @@ public partial class MainPage : ContentPage
     void Controls()
     {
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
-        LoginButton.IsEnabled = CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = CallButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
         SaveResultButton.IsEnabled = !busy && session.AwaitingResult;
         CancelAttemptButton.IsVisible = session.AwaitingResult;
@@ -64,23 +65,38 @@ public partial class MainPage : ContentPage
         if (apiUri is null || token is null) throw new InvalidOperationException("Inicia sesión primero.");
         var request = new HttpRequestMessage(method, Url(apiUri, path)); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return request;
     }
-    async void OnCompaniesClicked(object? sender, EventArgs e) => await RunAsync(async () =>
+    async void OnCompaniesClicked(object? sender, EventArgs e) => await RunAsync(LoadCompaniesAsync);
+    async Task LoadCompaniesAsync()
     {
-        using var response = await http.GetAsync(Url(Https(AuthUrlEntry.Text), "api/auth/companies")); await EnsureAsync(response);
-        var companies = await response.Content.ReadFromJsonAsync<List<Company>>() ?? [];
-        CompanyPicker.ItemsSource = companies;
-        if (companies.Count == 1) CompanyPicker.SelectedIndex = 0;
-        Message(companies.Count == 0 ? "El servidor no devolvió empresas activas." : "Selecciona tu empresa e inicia sesión.");
-    });
+        CompaniesButton.IsVisible = false;
+        Message("Cargando empresas…");
+        try
+        {
+            using var response = await http.GetAsync(Url(ServiceEndpoints.Auth, "api/auth/companies"));
+            await EnsureAsync(response);
+            var companies = await response.Content.ReadFromJsonAsync<List<Company>>() ?? [];
+            CompanyPicker.ItemsSource = companies;
+            companiesLoaded = companies.Count > 0;
+            if (companies.Count == 1) CompanyPicker.SelectedIndex = 0;
+            if (!companiesLoaded) throw new InvalidOperationException("No hay empresas disponibles en este momento.");
+            Message("Selecciona tu empresa e ingresa tus credenciales.");
+        }
+        catch
+        {
+            companiesLoaded = false;
+            CompaniesButton.IsVisible = true;
+            throw new InvalidOperationException("No se pudo cargar las empresas. Comprueba que tus servicios locales estén abiertos y pulsa Reintentar conexión.");
+        }
+    }
     async void OnLoginClicked(object? sender, EventArgs e) => await RunAsync(async () =>
     {
         if (CompanyPicker.SelectedItem is not Company company || string.IsNullOrWhiteSpace(UsernameEntry.Text) || string.IsNullOrWhiteSpace(PasswordEntry.Text)) throw new InvalidOperationException("Selecciona empresa, usuario y contraseña.");
-        var authUri = Https(AuthUrlEntry.Text); apiUri = Https(ApiUrlEntry.Text);
+        var authUri = ServiceEndpoints.Auth; apiUri = ServiceEndpoints.Api;
         using var response = await http.PostAsJsonAsync(Url(authUri, "api/auth/login"), new { username = UsernameEntry.Text.Trim(), password = PasswordEntry.Text, companyId = company.Id });
         await EnsureAsync(response); var login = await response.Content.ReadFromJsonAsync<Login>() ?? throw new InvalidOperationException("Respuesta de sesión inválida.");
         if (string.IsNullOrWhiteSpace(login.Token) || login.CompanyId != company.Id) throw new InvalidOperationException("La cuenta no tiene la empresa seleccionada.");
         token = login.Token; PasswordEntry.Text = "";
-        Preferences.Default.Set("auth_url", authUri.ToString().TrimEnd('/')); Preferences.Default.Set("api_url", apiUri.ToString().TrimEnd('/')); Preferences.Default.Set("username", UsernameEntry.Text.Trim());
+        Preferences.Default.Set("username", UsernameEntry.Text.Trim());
         LoginPanel.IsVisible = false; QueuePanel.IsVisible = true; SessionLabel.Text = $"{login.CompanyName ?? company.Name} · {login.Username}";
         cursor = 0; session.Reset(); AutomaticSwitch.IsToggled = false; currentQuery = BuildQuery(); await LoadAsync();
     });
