@@ -91,3 +91,11 @@ reales. Falta probar permisos, llamada y regreso a la app en un telefono con SIM
 
 Referencias: [ACTION_CALL de Android](https://developer.android.com/guide/components/intents-common#Phone),
 [permisos de .NET MAUI](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/appmodel/permissions).
+
+## Volver a llamar al mismo prospecto (1.5)
+
+Despues de una llamada, el boton queda disponible como "Guardar resultado y
+volver a llamar a este prospecto". Selecciona primero el resultado del intento
+anterior. Se guarda con su identificador y luego se marca el mismo numero,
+creando un intento nuevo sin avanzar la tanda. Si falla el guardado no se llama;
+si falla el marcado, el resultado anterior permanece guardado y puedes reintentar.

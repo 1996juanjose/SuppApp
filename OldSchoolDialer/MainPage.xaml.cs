@@ -46,7 +46,9 @@ public partial class MainPage : ContentPage
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
         CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
-        StartButton.IsEnabled = CallButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
+        StartButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
+        CallButton.IsEnabled = !busy && currentIndex < prospects.Count;
+        CallButton.Text = session.AwaitingResult ? "Guardar resultado y volver a llamar a este prospecto" : "Llamar a este prospecto";
         SaveOnlyButton.IsEnabled = SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
         CancelAttemptButton.IsVisible = session.AwaitingResult;
         CancelAttemptButton.IsEnabled = !busy;
@@ -129,7 +131,11 @@ public partial class MainPage : ContentPage
         session.CallStarted(); Message("Al terminar la llamada, vuelve aquí, elige el resultado y guárdalo.");
     }
     async void OnStartClicked(object? sender, EventArgs e) => await RunAsync(async () => { session.Start(); await CallAsync(); });
-    async void OnCallClicked(object? sender, EventArgs e) => await RunAsync(CallAsync);
+    async void OnCallClicked(object? sender, EventArgs e)
+    {
+        if (session.AwaitingResult) await SaveResultAsync(false, repeatCurrent: true);
+        else await RunAsync(CallAsync);
+    }
     void OnPauseClicked(object? sender, EventArgs e) { session.Pause(); Message("Tanda pausada. El resultado pendiente se conserva."); Controls(); }
     async void OnCancelAttemptClicked(object? sender, EventArgs e)
     {
@@ -157,7 +163,7 @@ public partial class MainPage : ContentPage
     }
     async void OnSaveResultClicked(object? sender, EventArgs e) => await SaveResultAsync(true);
     async void OnSaveOnlyClicked(object? sender, EventArgs e) => await SaveResultAsync(false);
-    async Task SaveResultAsync(bool callNext) => await RunAsync(async () =>
+    async Task SaveResultAsync(bool callNext, bool repeatCurrent = false) => await RunAsync(async () =>
     {
         if (!session.AwaitingResult || currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome) throw new InvalidOperationException("Elige el resultado de la llamada pendiente.");
         DateTime? nextCallAt = outcome == "Volver a llamar" ? DateTime.SpecifyKind(CallbackDate.Date.GetValueOrDefault().Date + CallbackTime.Time.GetValueOrDefault(), DateTimeKind.Unspecified) : null;
@@ -165,7 +171,18 @@ public partial class MainPage : ContentPage
         using var request = Request(HttpMethod.Post, $"api/records/{prospects[currentIndex].Id}/prospect-call-result");
         request.Content = JsonContent.Create(new { requestId = session.PendingAttemptId, outcome, notes = NotesEditor.Text, nextCallAt });
         using var response = await http.SendAsync(request); await EnsureAsync(response);
-        var advance = session.ResultSaved(callNext); currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
+        var saved = await response.Content.ReadFromJsonAsync<SavedCall>() ?? throw new InvalidOperationException("No se pudo confirmar el resultado. Reintenta guardar.");
+        var current = prospects[currentIndex];
+        current.CallCount = saved.CallCount; current.LastOutcome = outcome;
+        var advance = session.ResultSaved(callNext);
+        if (!repeatCurrent) currentIndex++;
+        OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
+        if (repeatCurrent)
+        {
+            Message("Resultado guardado. Volviendo a llamar al mismo prospecto…");
+            await CallAsync();
+            return;
+        }
         Message("Resultado guardado. " + (advance ? "Llamando al siguiente…" : "Elige cuándo llamar al siguiente."));
         if (advance && session.Running && currentIndex < prospects.Count) await CallAsync();
         if (currentIndex >= prospects.Count) { session.Pause(); Message("Tanda terminada. Carga la siguiente para continuar."); }
@@ -189,5 +206,6 @@ public partial class MainPage : ContentPage
     }
     public sealed class Company { public int Id { get; set; } public string Name { get; set; } = ""; }
     sealed class Login { public string? Token { get; set; } public string? Username { get; set; } public int? CompanyId { get; set; } public string? CompanyName { get; set; } }
+    sealed class SavedCall { public int CallCount { get; set; } }
     sealed class Prospect { public int Id { get; set; } public string Cellphone { get; set; } = ""; public string? NameOrReference { get; set; } public int CallCount { get; set; } public string? LastOutcome { get; set; } public DateTime? LastCallAt { get; set; } }
 }
