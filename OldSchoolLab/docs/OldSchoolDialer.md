@@ -1,4 +1,4 @@
-# OldSchool Ventas 1.3: cola nativa de llamadas
+# OldSchool Ventas 1.4: cola nativa de llamadas
 
 Se reutiliza el proyecto Android .NET MAUI `OldSchoolDialer`, con el mismo
 identificador de app `com.oldschool.ventas`.
@@ -61,21 +61,15 @@ sin offset, expresadas en hora de Peru.
 
 ## Despliegue y validacion
 
-La version 1.2 entregada para el emulador usa los servicios locales confirmados:
-AuthService `https://localhost:64491/` y OldSchoolApi `https://localhost:7254/`.
-Mantenerlos abiertos en Visual Studio. Al reiniciar el emulador, restablecer:
+La version 1.4 usa produccion directamente:
+- AuthService: https://ventas-authservice.wv6a0u.easypanel.host/
+- OldSchoolApi: https://ventas-oldschool-api.wv6a0u.easypanel.host/
 
-```powershell
-adb reverse tcp:64491 tcp:64491
-adb reverse tcp:7254 tcp:7254
-```
+No requiere Visual Studio ni adb reverse. El cliente usa validacion TLS normal,
+sin excepciones para certificados de desarrollo. Los servicios siguen definidos
+en ServiceEndpoints.cs. La APK entregada es una compilacion Debug para pruebas;
+no es una publicacion en Google Play.
 
-En DEBUG, se acepta exclusivamente la huella SHA256 del certificado publico
-de desarrollo verificado de este PC, solo para localhost en esos dos puertos
-y solo ante errores de cadena de confianza. No se acepta cualquier certificado.
-RELEASE conserva la validacion TLS normal. Si se regenera el certificado local,
-actualizar su huella y reconstruir. Para telefonos fuera del emulador, configurar
-las URLs publicadas con certificados validos antes de distribuir esa version.
 Los ensamblados se incluyen en la APK para permitir instalarla sin Visual Studio.
 
 Reiniciar/desplegar API y web antes de usar la nueva APK. Ambos crean de forma

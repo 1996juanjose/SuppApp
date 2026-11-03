@@ -85,7 +85,7 @@ public partial class MainPage : ContentPage
         {
             companiesLoaded = false;
             CompaniesButton.IsVisible = true;
-            throw new InvalidOperationException("No se pudo cargar las empresas. Comprueba que tus servicios locales estén abiertos y pulsa Reintentar conexión.");
+            throw new InvalidOperationException("No se pudo cargar las empresas. Comprueba tu conexión a Internet y pulsa Reintentar conexión.");
         }
     }
     async void OnLoginClicked(object? sender, EventArgs e) => await RunAsync(async () =>
