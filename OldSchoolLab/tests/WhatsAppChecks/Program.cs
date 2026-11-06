@@ -65,6 +65,11 @@ static class Checks
         Check((await service.StateAsync(other)).Campaign is null, "company cannot see another company's campaign");
         await Reject(() => service.ActionAsync(other, campaignId, first.Id, "pause"), "another company cannot mutate a campaign");
         await Reject(() => service.ActionAsync(User(1, "another-operator"), campaignId, first.Id, "pause"), "another operator cannot mutate a campaign");
+        await Reject(() => service.UpdatePendingMessageAsync(other, campaignId, "Otra empresa"), "cannot edit another company's campaign message");
+        await service.UpdatePendingMessageAsync(actor, campaignId, "Mensaje nuevo 🧪");
+        var edited = await service.StateAsync(actor);
+        Check(edited.Campaign!.Current!.Message == "Mensaje nuevo 🧪" && edited.Campaign.Current.OpenedAt is null, "pending message is editable and requires a fresh link");
+        Check((await service.HistoryAsync(actor, 1))[0].Message == "Hola & prueba 🧪\n¿Información?", "editing pending messages preserves sent history");
         await service.ActionAsync(actor, campaignId, null, "pause");
         await using (var reopened = new ApplicationDbContext(options))
         {

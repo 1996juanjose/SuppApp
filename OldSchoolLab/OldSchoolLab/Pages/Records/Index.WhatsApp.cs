@@ -43,7 +43,7 @@ public partial class IndexModel
     public Task<IActionResult> OnGetWhatsAppStateAsync() => WhatsAppResult(async () => await whatsapp.StateAsync(User));
     public Task<IActionResult> OnGetWhatsAppHistoryAsync(int recordId) => WhatsAppResult(async () => await whatsapp.HistoryAsync(User, recordId));
     public Task<IActionResult> OnPostWhatsAppPreviewAsync([FromBody] WhatsAppRequest? input) => WhatsAppMutation(input, async request => await whatsapp.PreviewAsync(User, request.Ids, request.ExcludePrevious));
-    public Task<IActionResult> OnPostWhatsAppMessageAsync([FromBody] WhatsAppRequest? input) => WhatsAppMutation(input, async request => new { saved = await whatsapp.SaveMessageAsync(User, request.Message) });
+    public Task<IActionResult> OnPostWhatsAppMessageAsync([FromBody] WhatsAppRequest? input) => WhatsAppMutation(input, async request => new { saved = request.CampaignId == Guid.Empty ? await whatsapp.SaveMessageAsync(User, request.Message) : await whatsapp.UpdatePendingMessageAsync(User, request.CampaignId, request.Message) });
     public Task<IActionResult> OnPostWhatsAppCreateAsync([FromBody] WhatsAppRequest? input) => WhatsAppMutation(input, async request => new { id = await whatsapp.CreateAsync(User, request.CampaignId, request.Ids, request.Message, request.ExcludePrevious) });
     public Task<IActionResult> OnPostWhatsAppActionAsync([FromBody] WhatsAppRequest? input) => WhatsAppMutation(input, async request => new { saved = await whatsapp.ActionAsync(User, request.CampaignId, request.RecipientId, request.Action), at = whatsapp.Now });
 }

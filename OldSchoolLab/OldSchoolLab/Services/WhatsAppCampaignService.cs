@@ -76,6 +76,27 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
         if (setting is null) { setting = new() { CompanyId = companyId, UserId = actor }; db.WhatsAppMessageSettings.Add(setting); }
         setting.Message = message.Trim(); return true;
     });
+    public Task<bool> UpdatePendingMessageAsync(ClaimsPrincipal user, Guid campaignId, string message) => WriteAsync(Company(user), async () =>
+    {
+        ValidateMessage(message);
+        var campaign = await OwnedAsync(user, campaignId);
+        if (campaign.Status == "Completed") throw new InvalidOperationException("La selección ya terminó.");
+        var text = message.Trim();
+        var pending = await db.WhatsAppCampaignRecipients.Where(x => x.CampaignId == campaign.Id && x.CompanyId == campaign.CompanyId && x.Status == "Pending").ToListAsync();
+        foreach (var recipient in pending)
+        {
+            if (recipient.Message == text) continue;
+            recipient.Message = text;
+            recipient.OpenedAt = null; // Generate a fresh link for the edited text before confirming.
+        }
+        campaign.Message = text;
+        var actor = Actor(user);
+        var setting = await db.WhatsAppMessageSettings.SingleOrDefaultAsync(x => x.CompanyId == campaign.CompanyId && x.UserId == actor);
+        if (setting is null) { setting = new() { CompanyId = campaign.CompanyId, UserId = actor }; db.WhatsAppMessageSettings.Add(setting); }
+        setting.Message = text;
+        return true;
+    });
+
     private static void ValidateMessage(string message)
     {
         if (string.IsNullOrWhiteSpace(message) || message.Length > 2000) throw new InvalidOperationException("Escribe un mensaje de 1 a 2000 caracteres.");

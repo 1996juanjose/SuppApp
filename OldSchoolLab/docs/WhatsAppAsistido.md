@@ -8,7 +8,7 @@
 2. Pulsar **WhatsApp masivo (N)** en la barra superior. Se abre un modal con la
    lista completa de seleccionados y el mensaje común.
 3. Escribir el mensaje y pulsar **Comenzar envíos**. Se guarda la selección en la
-   base de datos y se abre el enlace `wa.me` del primer seleccionado.
+   base de datos y se abre el enlace directo de WhatsApp Web del primer seleccionado.
 4. Enviar el mensaje manualmente en WhatsApp y volver al modal.
 5. Pulsar **Enviado y siguiente**: se registra **Reactivado: Sí**, con su fecha,
    y se abre el enlace del siguiente contacto. El modal marca el contacto anterior
@@ -16,8 +16,10 @@
 6. Se puede omitir, pausar o cerrar el modal. El progreso y los pendientes no se
    pierden al cerrar sesión o actualizar. El botón superior permite continuar.
 
-El mensaje se reutiliza; se puede guardar sin comenzar todavía. Una selección
-pendiente conserva su mensaje original y no permite cambiarlo a mitad del envío.
+El mensaje se reutiliza; se puede guardar sin comenzar todavía. Durante una selección puedes editar el mensaje y pulsar Guardar mensaje para los
+pendientes. Solo se actualizan los pendientes; los enviados conservan el texto
+original en el historial. Después de cambiarlo hay que abrir de nuevo WhatsApp Web
+para cargar el texto actualizado.
 
 ## Un único estado en el listado
 
@@ -51,8 +53,8 @@ Solo el usuario creador puede operar su selección, dentro de su empresa.
 Hay una selección pendiente por usuario; al abrir el modal se recupera primero.
 La lista muestra todos los contactos y su progreso, incluyendo enviados y omitidos.
 
-No se automatiza el botón Enviar ni se usan APIs de WhatsApp o RPA. WhatsApp se
-abre en una pestaña y la lista/progreso se mantiene dentro del modal. Si el
+No se automatiza el botón Enviar ni se usan APIs de WhatsApp o RPA. WhatsApp Web se
+abre directamente en una pestaña y la lista/progreso se mantiene dentro del modal. Si el
 navegador bloquea la pestaña, aparece un enlace manual.
 
 ## Despliegue y pruebas

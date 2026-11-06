@@ -51,15 +51,17 @@
         el('waProgress').textContent = c ? `${c.sent} de ${c.total} enviados · ${c.pending} pendientes${c.skipped ? ` · ${c.skipped} omitidos` : ''}${c.status === 'Paused' ? ' · Pausado' : c.status === 'Completed' ? ' · Completado' : ''}` : `${selected.size} contactos seleccionados`;
         el('waCurrentPanel').hidden = !c?.current;
         el('waCurrent').textContent = c?.current ? `${c.current.name || 'Registro'} · ${c.current.phone}${!c.current.allowed ? ' · No disponible: omitir para continuar' : ''}` : '';
-        el('waMessage').disabled = busy || pending;
+        const dirty = pending && el('waMessage').value.trim() !== c.message;
+        el('waMessage').disabled = busy;
         el('waConfirm').hidden = pending; el('waConfirm').disabled = busy || !selected.size;
         el('waConfirm').textContent = c?.status === 'Completed' ? 'Comenzar nueva selección' : 'Comenzar envíos';
-        el('waOpen').hidden = !active; el('waOpen').disabled = busy || !c?.current?.allowed;
-        el('waSent').hidden = !active; el('waSent').disabled = busy || !c?.current?.allowed || !c?.current?.openedAt;
+        el('waOpen').hidden = !active; el('waOpen').disabled = busy || dirty || !c?.current?.allowed;
+        el('waSent').hidden = !active; el('waSent').disabled = busy || dirty || !c?.current?.allowed || !c?.current?.openedAt;
         el('waSkip').hidden = !active; el('waSkip').disabled = busy;
         el('waPause').hidden = !active; el('waPause').disabled = busy;
         el('waContinue').hidden = !pending || c.status !== 'Paused'; el('waContinue').disabled = busy;
-        el('waSaveMessage').hidden = pending; el('waSaveMessage').disabled = busy;
+        el('waSaveMessage').hidden = false; el('waSaveMessage').disabled = busy;
+        el('waSaveMessage').textContent = pending ? 'Guardar mensaje para los pendientes' : 'Guardar mensaje para después';
         el('waStart').disabled = busy;
         for (const box of document.querySelectorAll('.wa-select')) {
             if (box.dataset.selectable === undefined) box.dataset.selectable = box.disabled ? 'no' : 'yes';
@@ -106,8 +108,8 @@
         const id = Number(button.dataset.record), record = records.get(id);
         selected.clear(); selected.set(record.phone, id); changedSelection(); showModal(); run(openSelection);
     }));
-    el('waMessage').addEventListener('input', () => creationId = null);
-    el('waSaveMessage').addEventListener('click', () => run(async () => { await api('WhatsAppMessage', { message: el('waMessage').value }); feedback('Mensaje guardado.'); }));
+    el('waMessage').addEventListener('input', () => { creationId = null; paint(); });
+    el('waSaveMessage').addEventListener('click', () => run(async () => { const editing = !!campaign?.pending; await api('WhatsAppMessage', { campaignId: editing ? campaign.id : undefined, message: el('waMessage').value }); await loadState(); feedback(editing ? 'Mensaje actualizado. Abre WhatsApp Web nuevamente para usarlo.' : 'Mensaje guardado.'); }));
     function reserveWindow() {
         if (popup && !popup.closed) return popup;
         popup = window.open('about:blank', 'oldschool_whatsapp_assisted'); if (popup) popup.opener = null;
@@ -124,7 +126,7 @@
         const c = campaign;
         if (!c?.current || c.status !== 'Active') return;
         await api('WhatsAppAction', { campaignId: c.id, recipientId: c.current.id, action: 'open' });
-        const link = `https://wa.me/${c.current.phone}?text=${encodeURIComponent(c.current.message)}`;
+        const link = `https://web.whatsapp.com/send?phone=${c.current.phone}&text=${encodeURIComponent(c.current.message)}`;
         if (target && !target.closed) { target.location = link; target.focus(); feedback('WhatsApp abierto. Envía el mensaje y vuelve para confirmar.'); }
         else {
             feedback('El navegador bloqueó la pestaña. Abre el enlace: ');
