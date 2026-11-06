@@ -16,6 +16,7 @@ public static class SeedData
         var roleManager = scopedServices.GetRequiredService<RoleManager<IdentityRole>>();
 
         await db.Database.EnsureCreatedAsync();
+        await OldSchoolLab.Services.WhatsAppCampaignSchema.EnsureAsync(db);
 
         await db.Database.ExecuteSqlRawAsync("SET TIME ZONE 'America/Lima';");
         await db.Database.ExecuteSqlRawAsync("""

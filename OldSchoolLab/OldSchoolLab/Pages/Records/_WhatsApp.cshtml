@@ -1,0 +1,42 @@
+@model OldSchoolLab.Pages.Records.IndexModel
+@if (Model.CanWhatsApp)
+{
+<section id="waWorkspace" class="card mb-4 border-success-subtle" aria-label="WhatsApp y reactivación" data-endpoint="@Url.Page("/Records/Index")">
+    <div class="card-body">
+        <form id="waToken" class="d-none">@Html.AntiForgeryToken()</form>
+        <div id="waMetrics" class="d-flex gap-3 flex-wrap small text-muted mb-2" aria-live="polite"></div>
+        <details id="waSettings">
+            <summary class="small fw-semibold">Mensaje y opciones de reactivación</summary>
+            <div class="mt-3" style="max-width:680px">
+                <label for="waMessage" class="form-label">Mensaje común para los seleccionados</label>
+                <textarea id="waMessage" class="form-control" rows="3" maxlength="2000" placeholder="Escribe tu mensaje…"></textarea>
+                <div class="form-check my-2"><input id="waExclude" type="checkbox" class="form-check-input" checked /><label for="waExclude" class="form-check-label">Excluir números con envíos anteriores</label></div>
+                <button id="waSaveMessage" type="button" class="btn btn-sm btn-outline-success">Guardar mensaje</button>
+                <p class="small text-muted mt-2 mb-0">El mensaje se guarda para tu usuario y empresa. Una selección iniciada conserva el mensaje con el que se creó.</p>
+            </div>
+        </details>
+        <div id="waFeedback" role="status" class="small mt-2" aria-live="polite"></div>
+        <div id="waPreview" class="mt-3" hidden>
+            <div id="waPreviewText" class="alert alert-warning small"></div>
+            <button id="waConfirm" type="button" class="btn btn-success">Iniciar con los habilitados</button>
+            <button id="waCancelPreview" type="button" class="btn btn-outline-secondary">Cancelar</button>
+        </div>
+        <div id="waCampaign" class="mt-3 border-top pt-3" hidden>
+            <div class="d-flex justify-content-between flex-wrap gap-2"><strong id="waProgress"></strong><span id="waCampaignId" class="small text-muted"></span></div>
+            <div id="waCurrent" class="my-2"></div>
+            <details class="small mb-2"><summary>Mensaje de esta selección</summary><p id="waCampaignMessage" class="text-break" style="white-space:pre-wrap"></p></details>
+            <div class="d-flex gap-2 flex-wrap">
+                <button id="waOpen" type="button" class="btn btn-outline-success">Generar enlace / abrir WhatsApp</button>
+                <button id="waSent" type="button" class="btn btn-success">Enviado y siguiente</button>
+                <button id="waSkip" type="button" class="btn btn-outline-secondary">Omitir</button>
+                <button id="waPause" type="button" class="btn btn-outline-secondary">Pausar</button>
+                <button id="waContinue" type="button" class="btn btn-outline-primary">Continuar campaña</button>
+                <button id="waRefresh" type="button" class="btn btn-link">Actualizar progreso</button>
+            </div>
+            <p class="small text-muted mt-2 mb-0">El enlace abre una conversación. Tú envías el mensaje y confirmas «Enviado» aquí. La confirmación registra tu declaración; no acredita entrega ni lectura.</p>
+        </div>
+        <details id="waHistory" class="mt-3" hidden><summary class="small fw-semibold">Historial de reactivación del número</summary><div id="waHistoryBody" class="mt-2 small"></div></details>
+    </div>
+</section>
+<script src="~/js/records-whatsapp.js" asp-append-version="true" defer></script>
+}

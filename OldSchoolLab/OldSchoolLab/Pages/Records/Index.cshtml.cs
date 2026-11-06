@@ -12,7 +12,7 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 namespace OldSchoolLab.Pages.Records;
 
 [Authorize]
-public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : PageModel
+public partial class IndexModel(ApplicationDbContext db, CashRegisterService cash, WhatsAppCampaignService whatsapp) : PageModel
 {
     public IList<CustomerRecord> Records { get; private set; } = new List<CustomerRecord>();
     public IList<StatusCatalog> Statuses { get; private set; } = new List<StatusCatalog>();
@@ -51,6 +51,7 @@ public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : Pag
     public async Task OnGetAsync()
     {
         await LoadStatusesAsync();
+        await LoadWhatsAppIndicatorsAsync();
         var printDaySessionKey = $"records-print-day:{User.GetCompanyId()?.ToString() ?? "global"}:{DateTime.Today:yyyyMMdd}";
         var printDayRaw = HttpContext.Session.GetString(printDaySessionKey);
         PrintDayCount = string.IsNullOrWhiteSpace(printDayRaw)
@@ -175,7 +176,7 @@ public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : Pag
             }
         }
 
-        if (!FromDate.HasValue && !ToDate.HasValue)
+        if (!FromDate.HasValue && !ToDate.HasValue && string.IsNullOrEmpty(WhatsAppFilter) && string.IsNullOrEmpty(ConsentFilter))
         {
             query = query.Where(x => x.CreatedAt.Date == today);
         }
@@ -439,7 +440,7 @@ public class IndexModel(ApplicationDbContext db, CashRegisterService cash) : Pag
             query = query.Where(x => x.CreatedAt < ToDate.Value.Date.AddDays(1));
         }
 
-        return query;
+        return whatsapp.Filter(query, WhatsAppFilter, ConsentFilter, User);
     }
 
     private FileContentResult BuildExcelResult(IReadOnlyCollection<CustomerRecord> records, string fileName, string title)

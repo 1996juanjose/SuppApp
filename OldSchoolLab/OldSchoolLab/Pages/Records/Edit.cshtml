@@ -23,6 +23,15 @@
             <div class="alert alert-warning">@warningMessage</div>
         }
 
+        <details class="border rounded p-3 mb-3">
+            <summary class="fw-semibold">WhatsApp / reactivaci√≥n: @(Model.CommercialConsent == "Authorized" ? "Autorizado" : Model.CommercialConsent == "DoNotContact" ? "No contactar" : "Sin verificar")</summary>
+            <div class="row g-3 mt-1">
+                <div class="col-md-4"><label asp-for="CommercialConsent" class="form-label">Estado comercial del n√∫mero</label><select asp-for="CommercialConsent" class="form-select"><option value="Unknown">Sin verificar</option><option value="Authorized">Autorizado</option><option value="DoNotContact">No contactar</option></select></div>
+                <div class="col-md-4"><label asp-for="ConsentExpiresAt" class="form-label">Vigente hasta (opcional, hora de Per√∫)</label><input asp-for="ConsentExpiresAt" type="datetime-local" class="form-control" /></div>
+                <div class="col-12"><label asp-for="ConsentEvidence" class="form-label">Fecha y referencia de la autorizaci√≥n / motivo del cambio</label><input asp-for="ConsentEvidence" maxlength="500" class="form-control" placeholder="Ej.: autorizaci√≥n recibida por WhatsApp el 05/11/2026" /></div>
+                <div class="col-12"><button type="submit" asp-page-handler="Consent" class="btn btn-outline-success" formnovalidate>Guardar estado comercial</button><span class="small text-muted ms-2">Se aplica al n√∫mero actual guardado y a sus registros anteriores. Si cambias el celular, guarda primero el registro.</span></div>
+            </div>
+        </details>
         <div class="row g-3">
             <div class="col-md-3">
                 <label asp-for="Input.StatusCatalogId" class="form-label"></label>
@@ -118,7 +127,7 @@
             </div>
             <div class="col-md-4">
                 <div class="border rounded p-3 bg-light">
-                    <div class="text-muted small">ComisiÛn</div>
+                    <div class="text-muted small">Comisi√≥n</div>
                     <div class="fs-4 fw-semibold" id="commissionPreview">S/ 0.00</div>
                 </div>
             </div>
@@ -172,7 +181,7 @@
                 <div class="mb-3">
                     <label asp-for="PaymentProofFile" class="form-label">Comprobante</label>
                     <input asp-for="PaymentProofFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" />
-                    <div class="form-text">Opcional. M·ximo 1 MB. La fecha del pago se registra autom·ticamente.</div>
+                    <div class="form-text">Opcional. M√°ximo 1 MB. La fecha del pago se registra autom√°ticamente.</div>
                     <span asp-validation-for="PaymentProofFile" class="text-danger"></span>
                 </div>
             </div>
@@ -194,7 +203,7 @@
                             <tr>
                                 <th>Fecha pago</th>
                                 <th>Registrado</th>
-                                <th>Cod. operaciÛn</th>
+                                <th>Cod. operaci√≥n</th>
                                 <th>Monto</th>
                                 <th>Estado</th>
                                 <th>Usuario</th>
@@ -251,7 +260,7 @@
                                         {
                                             <form method="post" asp-page-handler="ReversePayment" asp-route-id="@Model.Input.Id" asp-route-paymentId="@payment.Id" class="d-inline">
                                                 <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('øExtornar este pago?');">Extornar</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('¬øExtornar este pago?');">Extornar</button>
                                             </form>
                                         }
                                     </td>
@@ -277,7 +286,7 @@
                 <img id="paymentProofPreview" src="" alt="Comprobante" class="img-fluid rounded" />
             </div>
             <div class="modal-footer">
-                <a id="paymentProofOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pestaÒa</a>
+                <a id="paymentProofOpenLink" href="#" target="_blank" rel="noopener" class="btn btn-outline-secondary">Abrir en pesta√±a</a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
@@ -359,10 +368,10 @@
             paidPreview.textContent = formatCurrency(paid);
             balanceDue.textContent = formatCurrency(balance);
 
-            if (selectedProduct && Number(selectedQuantity || 0) > 0 && remaining < 0) {
-                stockWarning.textContent = `Aviso: este registro dejar· el stock en ${remaining}.`;
+            if (stockWarning && selectedProduct && Number(selectedQuantity || 0) > 0 && remaining < 0) {
+                stockWarning.textContent = `Aviso: este registro dejar√° el stock en ${remaining}.`;
                 stockWarning.classList.remove('d-none');
-            } else {
+            } else if (stockWarning) {
                 stockWarning.textContent = '';
                 stockWarning.classList.add('d-none');
             }

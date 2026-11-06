@@ -19,9 +19,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<LeadCallAttempt> LeadCallAttempts => Set<LeadCallAttempt>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    public DbSet<WhatsAppContact> WhatsAppContacts => Set<WhatsAppContact>();
+    public DbSet<WhatsAppConsentChange> WhatsAppConsentChanges => Set<WhatsAppConsentChange>();
+    public DbSet<WhatsAppMessageSetting> WhatsAppMessageSettings => Set<WhatsAppMessageSetting>();
+    public DbSet<WhatsAppCampaign> WhatsAppCampaigns => Set<WhatsAppCampaign>();
+    public DbSet<WhatsAppCampaignRecipient> WhatsAppCampaignRecipients => Set<WhatsAppCampaignRecipient>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<WhatsAppContact>().HasIndex(x => new { x.CompanyId, x.Phone }).IsUnique();
+        builder.Entity<WhatsAppMessageSetting>().HasIndex(x => new { x.CompanyId, x.UserId }).IsUnique();
+        builder.Entity<WhatsAppCampaign>().HasIndex(x => new { x.CompanyId, x.UserId, x.CreatedAt });
+        builder.Entity<WhatsAppCampaignRecipient>().HasIndex(x => new { x.CampaignId, x.Phone }).IsUnique();
+        builder.Entity<WhatsAppCampaignRecipient>().HasIndex(x => new { x.CompanyId, x.Phone, x.Status, x.DeclaredSentAt });
+        builder.Entity<WhatsAppCampaignRecipient>().HasOne(x => x.Campaign).WithMany().HasForeignKey(x => x.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<WhatsAppConsentChange>().HasIndex(x => new { x.CompanyId, x.Phone, x.ChangedAt });
+        builder.Entity<WhatsAppContact>().Property(x => x.ConsentExpiresAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppContact>().Property(x => x.ChangedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppConsentChange>().Property(x => x.ExpiresAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppConsentChange>().Property(x => x.ChangedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppCampaign>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppCampaignRecipient>().Property(x => x.OpenedAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppCampaignRecipient>().Property(x => x.DeclaredSentAt).HasColumnType("timestamp without time zone");
+        builder.Entity<WhatsAppCampaignRecipient>().Property(x => x.UpdatedAt).HasColumnType("timestamp without time zone");
         builder.Entity<LeadCallAttempt>().HasIndex(x => new { x.CompanyId, x.RecordId, x.CreatedAt });
         builder.Entity<LeadCallAttempt>().Property(x => x.CreatedAt).HasColumnType("timestamp without time zone");
         builder.Entity<LeadCallAttempt>().Property(x => x.NextCallAt).HasColumnType("timestamp without time zone");
