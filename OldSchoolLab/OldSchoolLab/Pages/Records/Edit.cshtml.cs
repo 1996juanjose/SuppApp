@@ -14,7 +14,7 @@ using System.Security.Claims;
 namespace OldSchoolLab.Pages.Records;
 
 [Authorize(Roles = "Gerencia,Gestor,Vendedor")]
-public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentProofStorage paymentProofStorage, WhatsAppCampaignService whatsapp) : PageModel
+public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentProofStorage paymentProofStorage) : PageModel
 {
     [BindProperty]
     [ValidateNever]
@@ -38,22 +38,6 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
 
     [BindProperty(SupportsGet = true)]
     public string? ReturnUrl { get; set; }
-
-    [BindProperty] public string CommercialConsent { get; set; } = "Unknown";
-    [BindProperty] public string? ConsentEvidence { get; set; }
-    [BindProperty] public DateTime? ConsentExpiresAt { get; set; }
-    public async Task<IActionResult> OnPostConsentAsync()
-    {
-        try
-        {
-            if (ModelState.TryGetValue(nameof(ConsentExpiresAt), out var expiryState) && expiryState.Errors.Count > 0) throw new InvalidOperationException("La fecha de vigencia no es válida.");
-            await whatsapp.SetConsentAsync(User, Input.Id, CommercialConsent, ConsentEvidence, ConsentExpiresAt);
-            TempData["WarningMessage"] = "Estado comercial actualizado para este número y sus registros anteriores.";
-        }
-        catch (InvalidOperationException ex) { TempData["WarningMessage"] = ex.Message; }
-        catch (UnauthorizedAccessException) { return Forbid(); }
-        return RedirectToPage(new { id = Input.Id, ReturnUrl });
-    }
 
     public class InputModel
     {
@@ -139,10 +123,6 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             .ThenByDescending(x => x.CreatedAt)
             .ToList();
 
-        var consent = await whatsapp.ConsentAsync(record.CompanyId, record.Cellphone);
-        CommercialConsent = consent?.ConsentStatus ?? "Unknown";
-        ConsentEvidence = consent?.Evidence;
-        ConsentExpiresAt = consent?.ConsentExpiresAt;
         Input = new InputModel
         {
             Id = record.Id,

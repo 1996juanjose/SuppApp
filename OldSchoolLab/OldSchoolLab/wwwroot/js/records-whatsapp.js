@@ -4,164 +4,171 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const selected = new Map();
-    let state, busy = false, previewIds = [], creationId, popup, messageLoaded = false;
+    const records = new Map([...document.querySelectorAll('.wa-select')].map(box => [Number(box.value), { recordId: Number(box.value), phone: box.dataset.phone, name: box.dataset.name || 'Registro', status: 'Pending' }]));
+    let state, campaign, busy = false, creationId, popup, loaded = false;
     const endpoint = handler => root.dataset.endpoint + '?handler=' + handler;
-    const feedback = (text, error = false) => {
+    function feedback(text, error = false) {
         el('waFeedback').textContent = text;
-        el('waFeedback').className = 'small mt-2 ' + (error ? 'text-danger' : 'text-success');
-    };
+        el('waFeedback').className = 'small mb-3 ' + (error ? 'text-danger' : 'text-success');
+    }
+    function showModal() { bootstrap.Modal.getOrCreateInstance(root).show(); }
     async function api(handler, body) {
         const response = await fetch(endpoint(handler), {
-            method: body === undefined ? 'GET' : 'POST',
-            credentials: 'same-origin',
+            method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin',
             headers: body === undefined ? {} : { 'Content-Type': 'application/json', 'RequestVerificationToken': root.querySelector('[name="__RequestVerificationToken"]').value },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
-        if (response.redirected || response.status === 401) throw new Error('La sesión venció. Vuelve a iniciar sesión; el progreso está guardado.');
+        if (response.redirected || response.status === 401) throw new Error('La sesión venció. Inicia sesión de nuevo; el progreso está guardado.');
         const data = await response.json().catch(() => null);
-        if (!response.ok || !data) throw new Error(data?.error || 'No se pudo confirmar la operación. Actualiza el progreso antes de continuar.');
+        if (!response.ok || !data) throw new Error(data?.error || 'No se pudo confirmar la acción. Cierra y vuelve a abrir este modal para actualizar el progreso.');
         return data;
     }
+    function renderContacts() {
+        const items = campaign ? campaign.contacts : [...selected.values()].map(id => records.get(id));
+        const list = el('waContacts'); list.replaceChildren();
+        el('waListCount').textContent = items.length;
+        if (!items.length) { list.textContent = 'Marca los contactos en el listado para comenzar.'; return; }
+        for (const item of items) {
+            const row = document.createElement('div'); row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
+            const current = item.id && item.id === campaign?.current?.id;
+            if (current) { row.classList.add('border-success', 'bg-success-subtle'); row.setAttribute('aria-current', 'true'); }
+            const text = document.createElement('div'); text.className = 'text-break';
+            const name = document.createElement('div'); name.className = 'fw-semibold small'; name.textContent = item.name || 'Registro';
+            const phone = document.createElement('div'); phone.className = 'small text-muted'; phone.textContent = item.phone;
+            const badge = document.createElement('span'); badge.className = 'badge ' + (item.status === 'Sent' ? 'text-bg-success' : 'text-bg-light');
+            badge.textContent = item.status === 'Sent' ? 'Enviado' : item.status === 'Skipped' ? 'Omitido' : current ? 'Actual' : 'Pendiente';
+            text.append(name, phone); row.append(text, badge); list.append(row);
+        }
+        const currentRow = list.querySelector('[aria-current="true"]');
+        if (currentRow && list.clientHeight) {
+            const offset = currentRow.getBoundingClientRect().top - list.getBoundingClientRect().top;
+            if (offset < 0 || offset + currentRow.clientHeight > list.clientHeight) list.scrollTop += offset - list.clientHeight / 3;
+        }
+    }
     function paint() {
-        el('waSelectedCount').textContent = selected.size;
-        const c = state?.campaign;
-        el('waCampaign').hidden = !c;
-        if (state) el('waMetrics').textContent = `Números de la empresa: ${state.totalClients} · Con envío: ${state.contacted} · Sin envío: ${state.totalClients - state.contacted} · Con enlace generado: ${state.generated}`;
-        if (c) {
-            el('waProgress').textContent = `${c.sent} de ${c.total} enviados · ${c.pending} pendientes · ${c.skipped} omitidos${c.status === 'Paused' ? ' · Pausada' : c.status === 'Completed' ? ' · Terminada' : ''}`;
-            el('waCampaignId').textContent = 'Reactivación · ' + c.id;
-            el('waCampaignMessage').textContent = c.message;
-            el('waCurrent').textContent = c.current ? `${c.current.name || 'Registro'} · ${c.current.phone}${!c.current.allowed ? ' · Sin autorización vigente: omitir para continuar' : c.current.openedAt ? ' · Enlace generado, pendiente de confirmar envío' : ''}` : 'Selección terminada. Puedes seleccionar otros registros.';
+        el('waStart').textContent = campaign?.pending && !selected.size ? `Continuar WhatsApp (${campaign.pending} pendientes)` : `WhatsApp masivo (${selected.size})`;
+        const c = campaign, pending = !!c?.pending, active = pending && c.status === 'Active';
+        el('waProgress').textContent = c ? `${c.sent} de ${c.total} enviados · ${c.pending} pendientes${c.skipped ? ` · ${c.skipped} omitidos` : ''}${c.status === 'Paused' ? ' · Pausado' : c.status === 'Completed' ? ' · Completado' : ''}` : `${selected.size} contactos seleccionados`;
+        el('waCurrentPanel').hidden = !c?.current;
+        el('waCurrent').textContent = c?.current ? `${c.current.name || 'Registro'} · ${c.current.phone}${!c.current.allowed ? ' · No disponible: omitir para continuar' : ''}` : '';
+        el('waMessage').disabled = busy || pending;
+        el('waConfirm').hidden = pending; el('waConfirm').disabled = busy || !selected.size;
+        el('waConfirm').textContent = c?.status === 'Completed' ? 'Comenzar nueva selección' : 'Comenzar envíos';
+        el('waOpen').hidden = !active; el('waOpen').disabled = busy || !c?.current?.allowed;
+        el('waSent').hidden = !active; el('waSent').disabled = busy || !c?.current?.allowed || !c?.current?.openedAt;
+        el('waSkip').hidden = !active; el('waSkip').disabled = busy;
+        el('waPause').hidden = !active; el('waPause').disabled = busy;
+        el('waContinue').hidden = !pending || c.status !== 'Paused'; el('waContinue').disabled = busy;
+        el('waSaveMessage').hidden = pending; el('waSaveMessage').disabled = busy;
+        el('waStart').disabled = busy;
+        for (const box of document.querySelectorAll('.wa-select')) {
+            if (box.dataset.selectable === undefined) box.dataset.selectable = box.disabled ? 'no' : 'yes';
+            box.disabled = busy || box.dataset.selectable === 'no'; box.checked = selected.has(box.dataset.phone);
         }
-        for (const id of ['waStart','waSaveMessage','waConfirm','waCancelPreview','waSettingsToggle','waRefresh']) el(id).disabled = busy;
-        for (const control of document.querySelectorAll('.wa-single,.wa-select')) {
-            if (control.dataset.busyEligible === undefined) control.dataset.busyEligible = control.disabled ? 'no' : 'yes';
-            control.disabled = busy || control.dataset.busyEligible === 'no';
-        }
-        el('waOpen').disabled = busy || !c?.current?.allowed || c.status !== 'Active';
-        el('waSent').disabled = busy || !c?.current?.allowed || !c.current.openedAt || c.status !== 'Active';
-        el('waSkip').disabled = busy || !c?.current || c.status !== 'Active';
-        el('waPause').hidden = c?.status !== 'Active'; el('waPause').disabled = busy;
-        el('waContinue').hidden = !c?.pending || c.status !== 'Paused'; el('waContinue').disabled = busy;
-        const boxes = [...document.querySelectorAll('.wa-select')].filter(x => x.dataset.busyEligible === 'yes');
+        const boxes = [...document.querySelectorAll('.wa-select')].filter(x => x.dataset.selectable === 'yes');
         el('waSelectAll').disabled = busy || !boxes.length;
         el('waSelectAll').checked = boxes.length > 0 && boxes.every(x => selected.has(x.dataset.phone));
         el('waSelectAll').indeterminate = !el('waSelectAll').checked && boxes.some(x => selected.has(x.dataset.phone));
+        document.querySelectorAll('.wa-single').forEach(button => { if (button.dataset.selectable === undefined) button.dataset.selectable = button.disabled ? 'no' : 'yes'; button.disabled = busy || button.dataset.selectable === 'no'; });
+        renderContacts();
     }
     async function run(work) {
         if (busy) return;
         busy = true; paint();
-        try { await work(); }
-        catch (error) { feedback(error.message, true); }
+        try { await work(); } catch (error) { feedback(error.message, true); }
         finally { busy = false; paint(); }
     }
-    async function loadState() {
+    async function loadState(showCompleted = true) {
         state = await api('WhatsAppState');
-        if (!messageLoaded) { el('waMessage').value = state.message; messageLoaded = true; }
+        campaign = state.campaign?.pending || showCompleted ? state.campaign : null;
+        if (!loaded || campaign?.pending) el('waMessage').value = campaign?.pending ? campaign.message : state.message;
+        loaded = true;
         paint();
     }
-    function syncSelection() {
-        document.querySelectorAll('.wa-select').forEach(x => x.checked = selected.has(x.dataset.phone));
-        paint();
-    }
+    function changedSelection() { creationId = null; if (!campaign?.pending) campaign = null; paint(); }
     document.querySelectorAll('.wa-select').forEach(box => box.addEventListener('change', () => {
         if (box.checked) selected.set(box.dataset.phone, Number(box.value)); else selected.delete(box.dataset.phone);
-        el('waPreview').hidden = true; creationId = null; syncSelection();
+        changedSelection();
     }));
     el('waSelectAll').addEventListener('change', event => {
         document.querySelectorAll('.wa-select:not(:disabled)').forEach(box => {
             if (event.target.checked) { if (!selected.has(box.dataset.phone)) selected.set(box.dataset.phone, Number(box.value)); }
             else selected.delete(box.dataset.phone);
-        });
-        el('waPreview').hidden = true; creationId = null; syncSelection();
+        }); changedSelection();
     });
-    const settings = () => { el('waSettings').open = true; root.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
-    el('waSettingsToggle').addEventListener('click', () => { el('waSettings').open = !el('waSettings').open; root.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-    el('waSaveMessage').addEventListener('click', () => run(async () => { await api('WhatsAppMessage', { message: el('waMessage').value }); feedback('Mensaje guardado.'); }));
-    async function preview(ids) {
-        if (!ids.length) throw new Error('Selecciona al menos un número habilitado del listado.');
-        if (state?.campaign?.pending) { root.scrollIntoView({ behavior: 'smooth' }); throw new Error('Continúa la selección pendiente antes de iniciar otra.'); }
-        if (!el('waMessage').value.trim()) { settings(); throw new Error('Escribe y guarda el mensaje común.'); }
-        previewIds = ids;
-        creationId = null;
-        const data = await api('WhatsAppPreview', { ids, excludePrevious: el('waExclude').checked });
-        el('waPreviewText').textContent = `${data.selected} registros · ${data.duplicates} duplicados · ${data.invalid} inválidos · ${data.withoutConsent} sin autorización vigente · ${data.previouslyContacted} con envíos anteriores. Se incluirán ${data.eligible} números.${data.previouslyContacted && !el('waExclude').checked ? ' Atención: volverás a contactar números con envíos anteriores.' : ''}`;
-        el('waPreview').hidden = false;
-        root.scrollIntoView({ behavior: 'smooth' });
+    async function openSelection() {
+        feedback(''); el('waHistory').hidden = true;
+        await loadState(false);
+        if (campaign?.pending && selected.size) feedback('Continúa los pendientes guardados. Al terminarlos podrás iniciar otra selección.');
     }
-    el('waStart').addEventListener('click', () => run(() => preview([...selected.values()])));
-    document.querySelectorAll('.wa-single').forEach(button => button.addEventListener('click', () => run(() => preview([Number(button.dataset.record)]))));
-    el('waCancelPreview').addEventListener('click', () => { el('waPreview').hidden = true; creationId = null; });
-    el('waExclude').addEventListener('change', () => { el('waPreview').hidden = true; creationId = null; });
-    el('waMessage').addEventListener('input', () => { el('waPreview').hidden = true; creationId = null; });
-    // One named browsing context, opened only from explicit clicks; there is no send automation.
+    el('waStart').addEventListener('click', () => { showModal(); run(openSelection); });
+    document.querySelectorAll('.wa-single').forEach(button => button.addEventListener('click', () => {
+        const id = Number(button.dataset.record), record = records.get(id);
+        selected.clear(); selected.set(record.phone, id); changedSelection(); showModal(); run(openSelection);
+    }));
+    el('waMessage').addEventListener('input', () => creationId = null);
+    el('waSaveMessage').addEventListener('click', () => run(async () => { await api('WhatsAppMessage', { message: el('waMessage').value }); feedback('Mensaje guardado.'); }));
     function reserveWindow() {
         if (popup && !popup.closed) return popup;
-        popup = window.open('about:blank', 'oldschool_whatsapp_assisted');
-        if (popup) popup.opener = null;
+        popup = window.open('about:blank', 'oldschool_whatsapp_assisted'); if (popup) popup.opener = null;
         return popup;
     }
-    function markRow(phone, status, at) {
+    function markReactivated(phone, at) {
         document.querySelectorAll('.wa-row-state').forEach(row => {
-            if (row.dataset.waPhone !== phone || status === 'Generado' && row.dataset.sent === 'yes') return;
-            row.textContent = `Reactivación · ${status} ${(at || '').replace('T', ' ').slice(0, 16)}`;
-            row.className = 'small wa-row-state ' + (status === 'Enviado' ? 'text-success' : 'text-muted');
-            if (status === 'Enviado') row.dataset.sent = 'yes';
+            if (row.dataset.waPhone !== phone) return;
+            row.textContent = `Reactivado: Sí · ${(at || '').replace('T', ' ').slice(0, 16)}`;
+            row.className = 'small wa-row-state text-success'; row.dataset.sent = 'yes';
         });
     }
     async function openCurrent(target) {
-        const c = state?.campaign;
-        if (!c?.current || c.status !== 'Active') { if (target && !target.closed) target.close(); return; }
-        const accepted = await api('WhatsAppAction', { campaignId: c.id, recipientId: c.current.id, action: 'open' });
-        markRow(c.current.phone, 'Generado', accepted.at);
+        const c = campaign;
+        if (!c?.current || c.status !== 'Active') return;
+        await api('WhatsAppAction', { campaignId: c.id, recipientId: c.current.id, action: 'open' });
         const link = `https://wa.me/${c.current.phone}?text=${encodeURIComponent(c.current.message)}`;
-        if (target && !target.closed) { target.location = link; target.focus(); }
+        if (target && !target.closed) { target.location = link; target.focus(); feedback('WhatsApp abierto. Envía el mensaje y vuelve para confirmar.'); }
         else {
-            feedback('Enlace generado. El navegador bloqueó la pestaña; ábrelo aquí: ');
+            feedback('El navegador bloqueó la pestaña. Abre el enlace: ');
             const anchor = document.createElement('a'); anchor.href = link; anchor.target = 'oldschool_whatsapp_assisted'; anchor.rel = 'noopener'; anchor.textContent = 'Abrir WhatsApp'; el('waFeedback').append(anchor);
         }
         await loadState();
     }
     el('waConfirm').addEventListener('click', () => {
         if (busy) return;
+        if (!el('waMessage').value.trim()) { feedback('Escribe el mensaje para comenzar.', true); el('waMessage').focus(); return; }
         const target = reserveWindow();
         run(async () => {
             creationId ||= crypto.randomUUID();
             await api('WhatsAppMessage', { message: el('waMessage').value });
-            await api('WhatsAppCreate', { campaignId: creationId, ids: previewIds, message: el('waMessage').value, excludePrevious: el('waExclude').checked });
-            el('waPreview').hidden = true; selected.clear(); syncSelection();
-            await loadState();
-            feedback('Selección guardada. Envía manualmente el mensaje en WhatsApp y confirma aquí.');
-            await openCurrent(target);
+            await api('WhatsAppCreate', { campaignId: creationId, ids: [...selected.values()], message: el('waMessage').value, excludePrevious: false });
+            selected.clear(); await loadState(); feedback('Envía el mensaje en WhatsApp y vuelve para confirmar.'); await openCurrent(target);
         });
     });
     el('waOpen').addEventListener('click', () => { if (!busy) { const target = reserveWindow(); run(() => openCurrent(target)); } });
     async function action(name, target) {
-        const c = state?.campaign; if (!c) return;
+        const c = campaign; if (!c) return;
         const accepted = await api('WhatsAppAction', { campaignId: c.id, recipientId: c.current?.id, action: name });
-        if (name === 'sent') markRow(c.current.phone, 'Enviado', accepted.at);
-        await loadState();
-        feedback(name === 'sent' ? 'Envío declarado guardado permanentemente.' : name === 'skip' ? 'Contacto omitido.' : name === 'pause' ? 'Progreso guardado. Puedes continuar después.' : 'Selección reanudada.');
+        if (name === 'sent') markReactivated(c.current.phone, accepted.at);
+        await loadState(); feedback(name === 'sent' ? 'Reactivación guardada.' : name === 'skip' ? 'Contacto omitido.' : name === 'pause' ? 'Pendientes guardados. Puedes continuar después.' : 'Envíos reanudados.');
         if (target) await openCurrent(target);
     }
     el('waSent').addEventListener('click', () => { if (!busy) { const target = reserveWindow(); run(() => action('sent', target)); } });
     el('waSkip').addEventListener('click', () => { if (!busy) { const target = reserveWindow(); run(() => action('skip', target)); } });
     el('waPause').addEventListener('click', () => run(() => action('pause')));
     el('waContinue').addEventListener('click', () => { if (!busy) { const target = reserveWindow(); run(() => action('continue', target)); } });
-    el('waRefresh').addEventListener('click', () => run(loadState));
-    document.querySelectorAll('.wa-history').forEach(button => button.addEventListener('click', () => run(async () => {
-        const data = await api('WhatsAppHistory&recordId=' + encodeURIComponent(button.dataset.record));
-        const body = el('waHistoryBody'); body.replaceChildren();
-        if (!data.length) body.textContent = 'Sin historial de reactivación.';
-        for (const item of data) {
-            const block = document.createElement('div'); block.className = 'border-bottom py-2';
-            const heading = document.createElement('div');
-            const label = item.status === 'Sent' ? 'Enviado (declarado)' : item.status === 'Skipped' ? 'Omitido' : item.openedAt ? 'Enlace generado' : 'Pendiente';
-            heading.textContent = `${label} · Campaña ${item.campaignId} · ${item.phone} · ${item.actorName || 'Sin acción'} · ${(item.declaredSentAt || item.openedAt || '').replace('T', ' ').slice(0, 19)}`;
-            const text = document.createElement('div'); text.style.whiteSpace = 'pre-wrap'; text.textContent = item.message;
-            block.append(heading, text); body.append(block);
-        }
-        el('waHistory').hidden = false; el('waHistory').open = true; el('waHistory').scrollIntoView({ behavior: 'smooth' });
-    })));
-    run(loadState);
+    document.querySelectorAll('.wa-history').forEach(button => button.addEventListener('click', () => {
+        showModal(); run(async () => {
+            await loadState(false);
+            const data = await api('WhatsAppHistory&recordId=' + encodeURIComponent(button.dataset.record));
+            const body = el('waHistoryBody'); body.replaceChildren();
+            if (!data.length) body.textContent = 'Sin reactivaciones registradas.';
+            for (const item of data) {
+                const block = document.createElement('div'); block.className = 'border-bottom py-2';
+                const heading = document.createElement('div'); heading.textContent = `${item.status === 'Sent' ? 'Enviado' : item.status === 'Skipped' ? 'Omitido' : 'Pendiente'} · ${item.phone} · ${item.actorName || ''} · ${(item.declaredSentAt || item.openedAt || '').replace('T', ' ').slice(0, 19)}`;
+                const message = document.createElement('div'); message.style.whiteSpace = 'pre-wrap'; message.textContent = item.message;
+                block.append(heading, message); body.append(block);
+            }
+            el('waHistory').hidden = false; el('waHistory').open = true;
+        });
+    }));
+    run(() => loadState(false));
 })();

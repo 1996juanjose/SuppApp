@@ -46,8 +46,6 @@ internal static class FixtureHost
                 new CustomerRecord { Id = 4, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000004", NameOrReference = "No contactar", CreatedAt = DateTime.Today });
             await db.SaveChangesAsync();
             var service = scope.ServiceProvider.GetRequiredService<WhatsAppCampaignService>();
-            await service.SetConsentAsync(FixtureAuthentication.Principal(), 1, "Authorized", "Autorización ficticia para prueba aislada", null);
-            await service.SetConsentAsync(FixtureAuthentication.Principal(), 3, "Authorized", "Autorización ficticia para prueba aislada", null);
             await service.SetConsentAsync(FixtureAuthentication.Principal(), 4, "DoNotContact", "Prueba de exclusión", null);
         }
         app.UseStaticFiles(); app.UseRouting(); app.UseSession(); app.UseAuthentication(); app.UseAuthorization(); app.MapRazorPages();

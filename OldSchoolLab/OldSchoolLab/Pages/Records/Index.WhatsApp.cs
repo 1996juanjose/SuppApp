@@ -7,10 +7,8 @@ namespace OldSchoolLab.Pages.Records;
 public partial class IndexModel
 {
     [BindProperty(SupportsGet = true)] public string? WhatsAppFilter { get; set; }
-    [BindProperty(SupportsGet = true)] public string? ConsentFilter { get; set; }
     public bool CanWhatsApp => WhatsAppCampaignService.CanUse(User);
     public Dictionary<string, DateTime> WhatsAppLastSent { get; private set; } = new();
-    public HashSet<string> WhatsAppGenerated { get; private set; } = new();
     public Dictionary<string, WhatsAppContact> WhatsAppConsents { get; private set; } = new();
     public DateTime WhatsAppNow => whatsapp.Now;
     private async Task LoadWhatsAppIndicatorsAsync()
@@ -19,7 +17,6 @@ public partial class IndexModel
         if (!companyId.HasValue) return;
         WhatsAppLastSent = await db.WhatsAppCampaignRecipients.AsNoTracking().Where(x => x.CompanyId == companyId && x.Status == "Sent" && x.DeclaredSentAt != null)
             .GroupBy(x => x.Phone).Select(x => new { Phone = x.Key, Date = x.Max(r => r.DeclaredSentAt)!.Value }).ToDictionaryAsync(x => x.Phone, x => x.Date);
-        WhatsAppGenerated = (await db.WhatsAppCampaignRecipients.AsNoTracking().Where(x => x.CompanyId == companyId && x.OpenedAt != null).Select(x => x.Phone).Distinct().ToListAsync()).ToHashSet();
         WhatsAppConsents = await db.WhatsAppContacts.AsNoTracking().Where(x => x.CompanyId == companyId).ToDictionaryAsync(x => x.Phone);
     }
     public sealed class WhatsAppRequest
@@ -29,7 +26,7 @@ public partial class IndexModel
         public int[] Ids { get; set; } = [];
         public string Message { get; set; } = "";
         public string Action { get; set; } = "";
-        public bool ExcludePrevious { get; set; } = true;
+        public bool ExcludePrevious { get; set; }
     }
     private async Task<IActionResult> WhatsAppResult(Func<Task<object>> operation)
     {

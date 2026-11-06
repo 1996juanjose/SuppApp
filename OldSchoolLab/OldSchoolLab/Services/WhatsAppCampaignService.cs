@@ -20,8 +20,8 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
         && user.GetCompanyId().HasValue && (user.IsInRole("Gerencia") || user.IsInRole("Gestor") || user.IsInRole("Vendedor"));
     private static string Actor(ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("Inicia sesión de nuevo.");
     private static int Company(ClaimsPrincipal user) => CanUse(user) ? user.GetCompanyId()!.Value : throw new UnauthorizedAccessException();
-    public static bool Allowed(WhatsAppContact? contact, DateTime now) => contact?.ConsentStatus == "Authorized"
-        && (!contact.ConsentExpiresAt.HasValue || contact.ConsentExpiresAt > now);
+    // Historical contacts are selectable by default. Preserve only explicit opt-outs.
+    public static bool Allowed(WhatsAppContact? contact, DateTime now) => contact?.ConsentStatus != "DoNotContact";
 
     private Task<T> WriteAsync<T>(int companyId, Func<Task<T>> action) => db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
     {
@@ -80,13 +80,14 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
     {
         if (string.IsNullOrWhiteSpace(message) || message.Length > 2000) throw new InvalidOperationException("Escribe un mensaje de 1 a 2000 caracteres.");
     }
-    public sealed record Preview(int Selected, int Unique, int Duplicates, int Invalid, int WithoutConsent, int PreviouslyContacted, int Eligible);
+    public sealed record Preview(int Selected, int Unique, int Duplicates, int Invalid, int Blocked, int PreviouslyContacted, int Eligible);
     private async Task<(List<CustomerRecord> Records, Preview Preview)> EligibleAsync(int companyId, int[] ids, bool excludePrevious)
     {
         if (ids is null || ids.Length is < 1 or > 1000) throw new InvalidOperationException("Selecciona entre 1 y 1000 registros.");
         var records = await db.CustomerRecords.AsNoTracking().Where(x => ids.Contains(x.Id) && x.CompanyId == companyId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToListAsync();
         if (records.Count != ids.Distinct().Count()) throw new InvalidOperationException("Algún registro ya no existe o no pertenece a tu empresa. Actualiza el listado.");
-        var unique = records.GroupBy(x => Phone(x.Cellphone)).Select(x => x.First()).ToList();
+        var selectionOrder = ids.Distinct().Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);
+        var unique = records.OrderBy(x => selectionOrder[x.Id]).GroupBy(x => Phone(x.Cellphone)).Select(x => x.First()).ToList();
         var phones = unique.Select(x => Phone(x.Cellphone)).ToArray();
         var consents = await db.WhatsAppContacts.AsNoTracking().Where(x => x.CompanyId == companyId && phones.Contains(x.Phone)).ToDictionaryAsync(x => x.Phone);
         var previous = await db.WhatsAppCampaignRecipients.AsNoTracking().Where(x => x.CompanyId == companyId && phones.Contains(x.Phone) && x.Status == "Sent").Select(x => x.Phone).Distinct().ToListAsync();
@@ -111,7 +112,7 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
         if (await db.WhatsAppCampaigns.AnyAsync(x => x.CompanyId == companyId && x.UserId == actor && x.Status != "Completed"))
             throw new InvalidOperationException("Tienes una selección pendiente. Continúala o termina sus contactos antes de iniciar otra.");
         var eligible = await EligibleAsync(companyId, ids, excludePrevious);
-        if (eligible.Records.Count == 0) throw new InvalidOperationException("No hay números habilitados: revisa la autorización comercial y la exclusión de contactos anteriores.");
+        if (eligible.Records.Count == 0) throw new InvalidOperationException("No hay números válidos disponibles en la selección.");
         db.WhatsAppCampaigns.Add(new() { Id = requestId, CompanyId = companyId, UserId = actor, UserName = user.Identity!.Name ?? "", Message = message.Trim(), CreatedAt = Now });
         var position = 0;
         foreach (var r in eligible.Records)
@@ -149,7 +150,7 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
         if (action != "skip")
         {
             var consent = await db.WhatsAppContacts.SingleOrDefaultAsync(x => x.CompanyId == campaign.CompanyId && x.Phone == recipient.Phone);
-            if (!Allowed(consent, Now)) throw new InvalidOperationException("Este número ya no tiene autorización comercial vigente. Omítelo para continuar.");
+            if (!Allowed(consent, Now)) throw new InvalidOperationException("Este número tiene una solicitud de no contacto registrada. Omítelo para continuar.");
             var source = await db.CustomerRecords.AsNoTracking().SingleOrDefaultAsync(x => x.Id == recipient.RecordId && x.CompanyId == campaign.CompanyId);
             if (source is null || Phone(source.Cellphone) != recipient.Phone) throw new InvalidOperationException("El registro cambió o fue eliminado. Omítelo para continuar.");
         }
@@ -168,7 +169,8 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
     });
 
     public sealed record RecipientView(Guid Id, int RecordId, string Name, string Phone, string Message, string Status, DateTime? OpenedAt, DateTime? DeclaredSentAt, string ActorName, bool Allowed, Guid CampaignId = default);
-    public sealed record CampaignView(Guid Id, string Status, DateTime CreatedAt, string Message, int Total, int Sent, int Pending, int Skipped, RecipientView? Current);
+    public sealed record QueueContact(Guid Id, int RecordId, string Name, string Phone, string Status);
+    public sealed record CampaignView(Guid Id, string Status, DateTime CreatedAt, string Message, int Total, int Sent, int Pending, int Skipped, RecipientView? Current, IReadOnlyList<QueueContact> Contacts);
     public sealed record CampaignState(string Message, CampaignView? Campaign, int TotalClients, int Contacted, int Generated);
     public async Task<CampaignState> StateAsync(ClaimsPrincipal user)
     {
@@ -183,7 +185,8 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
             var current = items.FirstOrDefault(x => x.Status == "Pending");
             var allowed = current is not null && Allowed(await ConsentAsync(companyId, current.Phone), Now);
             view = new(campaign.Id, campaign.Status, campaign.CreatedAt, campaign.Message, items.Count, items.Count(x => x.Status == "Sent"), items.Count(x => x.Status == "Pending"), items.Count(x => x.Status == "Skipped"),
-                current is null ? null : new(current.Id, current.RecordId, current.Name, current.Phone, current.Message, current.Status, current.OpenedAt, current.DeclaredSentAt, current.ActorName, allowed, campaign.Id));
+                current is null ? null : new(current.Id, current.RecordId, current.Name, current.Phone, current.Message, current.Status, current.OpenedAt, current.DeclaredSentAt, current.ActorName, allowed, campaign.Id),
+                items.Select(x => new QueueContact(x.Id, x.RecordId, x.Name, x.Phone, x.Status)).ToList());
         }
         var total = await db.CustomerRecords.AsNoTracking().Where(x => x.CompanyId == companyId).Select(x => x.Cellphone).ToListAsync();
         var phones = total.Select(Phone).Distinct().ToHashSet();
@@ -198,14 +201,11 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
         var now = Now; var day = now.Date; var tomorrow = day.AddDays(1); var actor = Actor(user);
         var projected = query.Select(x => new { Record = x, Clean = x.Cellphone.Replace(" ", "").Replace("+", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace(".", "") })
             .Select(x => new { x.Record, Phone = x.Clean.Length == 9 && x.Clean.StartsWith("9") ? "51" + x.Clean : x.Clean });
-        if (filter == "unsent") projected = projected.Where(x => !db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Sent"));
-        if (filter == "sent") projected = projected.Where(x => db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Sent"));
+        if (filter is "no" or "unsent") projected = projected.Where(x => !db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Sent"));
+        if (filter is "yes" or "sent") projected = projected.Where(x => db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Sent"));
         if (filter == "generated" || filter == "reactivation") projected = projected.Where(x => db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.OpenedAt != null));
         if (filter == "today") projected = projected.Where(x => db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Sent" && r.DeclaredSentAt >= day && r.DeclaredSentAt < tomorrow));
         if (filter == "pending") projected = projected.Where(x => db.WhatsAppCampaignRecipients.Any(r => r.CompanyId == x.Record.CompanyId && r.Phone == x.Phone && r.Status == "Pending" && r.Campaign.UserId == actor && r.Campaign.Status != "Completed"));
-        if (consentFilter == "authorized") projected = projected.Where(x => db.WhatsAppContacts.Any(c => c.CompanyId == x.Record.CompanyId && c.Phone == x.Phone && c.ConsentStatus == "Authorized" && (c.ConsentExpiresAt == null || c.ConsentExpiresAt > now)));
-        if (consentFilter == "blocked") projected = projected.Where(x => db.WhatsAppContacts.Any(c => c.CompanyId == x.Record.CompanyId && c.Phone == x.Phone && c.ConsentStatus == "DoNotContact"));
-        if (consentFilter == "unknown") projected = projected.Where(x => !db.WhatsAppContacts.Any(c => c.CompanyId == x.Record.CompanyId && c.Phone == x.Phone && (c.ConsentStatus == "DoNotContact" || c.ConsentStatus == "Authorized" && (c.ConsentExpiresAt == null || c.ConsentExpiresAt > now))));
         return projected.Select(x => x.Record);
     }
     public async Task<List<RecipientView>> HistoryAsync(ClaimsPrincipal user, int recordId)

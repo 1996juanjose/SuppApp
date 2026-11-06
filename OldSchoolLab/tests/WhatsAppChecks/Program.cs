@@ -23,6 +23,7 @@ static class Checks
     {
         var actor = User(1); var other = User(2); var config = Config();
         await using var db = new ApplicationDbContext(options);
+        if (db.Database.IsRelational()) await db.Database.OpenConnectionAsync();
         db.Companies.AddRange(new Company { Id = 1, Name = "Isolated WhatsApp company" }, new Company { Id = 2, Name = "Other company" });
         db.Statuses.AddRange(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" }, new StatusCatalog { Id = 2, CompanyId = 2, Name = "Prospecto" });
         db.CustomerRecords.AddRange(
@@ -34,13 +35,11 @@ static class Checks
         await db.SaveChangesAsync();
         var service = new WhatsAppCampaignService(db, config);
         Check(WhatsAppCampaignService.Phone("+51 (953) 342-737") == WhatsAppCampaignService.Phone("953342737"), "Peruvian phone aliases normalize to one contact");
-        await Reject(() => service.SetConsentAsync(actor, 1, "Authorized", "", null), "authorization requires evidence");
-        await service.SetConsentAsync(actor, 1, "Authorized", "Test-only evidence", null);
-        await service.SetConsentAsync(actor, 3, "Authorized", "Test-only evidence", null);
+        Check((await service.PreviewAsync(actor, [1, 2, 3], false)).Eligible == 2, "existing numbers without commercial metadata are selectable by default");
         await service.SetConsentAsync(actor, 4, "DoNotContact", "Opt out", null);
         await Reject(() => service.SetConsentAsync(actor, 5, "Authorized", "test", null), "cannot authorize another company's record");
         var preview = await service.PreviewAsync(actor, [1, 2, 3, 4], true);
-        Check(preview.Unique == 3 && preview.Duplicates == 1 && preview.WithoutConsent == 1 && preview.Eligible == 2, "preview deduplicates and excludes blocked contacts");
+        Check(preview.Unique == 3 && preview.Duplicates == 1 && preview.Blocked == 1 && preview.Eligible == 2, "preview deduplicates and excludes blocked contacts");
         await service.SaveMessageAsync(actor, "Hola & prueba 🧪\n¿Información?");
         var campaignId = Guid.NewGuid();
         await service.CreateAsync(actor, campaignId, [1, 2, 3, 4], "Hola & prueba 🧪\n¿Información?", true);
@@ -48,6 +47,8 @@ static class Checks
         Check(await db.WhatsAppCampaigns.CountAsync() == 1 && await db.WhatsAppCampaignRecipients.CountAsync() == 2, "campaign creation is idempotent and snapshots distinct numbers");
         await Reject(() => service.CreateAsync(actor, Guid.NewGuid(), [1], "Hola", true), "existing pending campaign must be resumed");
         var state = await service.StateAsync(actor); var first = state.Campaign!.Current!;
+        Check(first.RecordId == 1, "campaign starts with the first selected distinct number");
+        Check(state.Campaign.Contacts.Count == 2 && state.Campaign.Contacts.All(x => x.Status == "Pending"), "modal receives the complete persisted selection");
         await Reject(() => service.ActionAsync(actor, campaignId, first.Id, "sent"), "cannot declare sent before generating link");
         await service.ActionAsync(actor, campaignId, first.Id, "open");
         state = await service.StateAsync(actor);
@@ -57,8 +58,8 @@ static class Checks
         await service.ActionAsync(actor, campaignId, first.Id, "sent");
         await Reject(() => service.ActionAsync(actor, campaignId, first.Id, "open"), "stale browser tab cannot reopen a contact already processed");
         Check(await db.WhatsAppCampaignRecipients.CountAsync(x => x.Status == "Sent") == 1, "replayed sent confirmation never duplicates or advances another contact");
-        Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 1), "sent", null, actor).CountAsync() == 2, "sent filter matches both original and repeated purchase record");
-        Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 1), "unsent", null, actor).CountAsync() == 2, "never-contacted filter survives persistent history");
+        Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 1), "yes", null, actor).CountAsync() == 2, "reactivated yes filter matches both original and repeated purchase record");
+        Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 1), "no", null, actor).CountAsync() == 2, "reactivated no filter survives persistent history");
         Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 1), "today", null, actor).CountAsync() == 2, "contacted-today uses Peru day");
         Check(await service.Filter(db.CustomerRecords.Where(x => x.CompanyId == 2), "sent", null, other).CountAsync() == 0, "same phone in another company has separate history");
         Check((await service.StateAsync(other)).Campaign is null, "company cannot see another company's campaign");
@@ -67,6 +68,7 @@ static class Checks
         await service.ActionAsync(actor, campaignId, null, "pause");
         await using (var reopened = new ApplicationDbContext(options))
         {
+            if (reopened.Database.IsRelational()) await reopened.Database.OpenConnectionAsync();
             var restored = new WhatsAppCampaignService(reopened, config);
             var recovered = await restored.StateAsync(actor);
             Check(recovered.Campaign!.Status == "Paused" && recovered.Campaign.Sent == 1 && recovered.Campaign.Pending == 1 && recovered.Message.Contains("🧪"), "new context recovers saved message, sent history and pending campaign");
@@ -86,7 +88,7 @@ static class Checks
         await service.SetConsentAsync(actor, 1, "Authorized", "Renewed", service.Now.AddDays(1));
         var contact = await db.WhatsAppContacts.SingleAsync(x => x.CompanyId == 1 && x.Phone == "51953342737");
         contact.ConsentExpiresAt = service.Now.AddSeconds(-1); await db.SaveChangesAsync();
-        Check((await service.PreviewAsync(actor, [1], false)).Eligible == 0, "expired consent is excluded");
+        Check((await service.PreviewAsync(actor, [1], false)).Eligible == 1, "legacy authorization dates do not prevent manual selection");
     }
     public static async Task Main(string[] args)
     {
@@ -107,6 +109,7 @@ static class Checks
                 var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(isolated.ConnectionString, n => n.EnableRetryOnFailure()).Options;
                 await using (var db = new ApplicationDbContext(options))
                 {
+                    await db.Database.OpenConnectionAsync();
                     var sql = db.Database.GenerateCreateScript();
                     if (sql.Contains("\"public\".")) throw new Exception("Isolation failure");
                     await db.Database.ExecuteSqlRawAsync(sql);

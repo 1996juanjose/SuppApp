@@ -43,8 +43,8 @@
     <div class="records-actions d-flex gap-2 align-items-center flex-wrap">
         @if (Model.CanWhatsApp)
         {
-            <button type="button" id="waStart" class="btn btn-outline-success">WhatsApp masivo (<span id="waSelectedCount">0</span>)</button>
-            <button type="button" id="waSettingsToggle" class="btn btn-outline-secondary" title="Configurar mensaje" aria-label="Configurar mensaje de WhatsApp">&#9881;</button>
+            <button type="button" id="waStart" class="btn btn-outline-success">WhatsApp masivo (0)</button>
+
         }
         @if (Model.CanEdit)
         {
@@ -148,8 +148,7 @@
     <div class="card-body">
         <div class="filter-heading">Filtrar registros <span>Encuentra lo que necesitas</span></div>
         <div class="row g-3">
-            <div class="col-md-3"><label asp-for="WhatsAppFilter" class="form-label">WhatsApp / reactivación</label><select asp-for="WhatsAppFilter" class="form-select"><option value="">Todos</option><option value="unsent">Sin envío masivo</option><option value="generated">Enlace generado</option><option value="sent">Enviado / ya contactados</option><option value="pending">Pendientes de campaña</option><option value="today">Contactados hoy (Perú)</option><option value="reactivation">Reactivación: enlace generado</option></select></div>
-            <div class="col-md-3"><label asp-for="ConsentFilter" class="form-label">Estado comercial</label><select asp-for="ConsentFilter" class="form-select"><option value="">Todos</option><option value="authorized">Autorizado vigente</option><option value="unknown">Sin verificar / vencido</option><option value="blocked">No contactar</option></select></div>
+            <div class="col-md-3"><label asp-for="WhatsAppFilter" class="form-label">Reactivado</label><select asp-for="WhatsAppFilter" class="form-select"><option value="">Todos</option><option value="yes">Sí</option><option value="no">No</option></select></div>
             <div class="col-md-3">
                 <label class="form-label">Estado</label>
                 <div class="dropdown w-100">
@@ -373,7 +372,7 @@
                 var waPhone = OldSchoolLab.Services.WhatsAppCampaignService.Phone(item.Cellphone);
                 var waAllowed = Model.CanWhatsApp && OldSchoolLab.Services.WhatsAppCampaignService.ValidPhone(waPhone) && OldSchoolLab.Services.WhatsAppCampaignService.Allowed(Model.WhatsAppConsents.GetValueOrDefault(waPhone), Model.WhatsAppNow);
                 <tr class="@rowClass">
-                    <td><input type="checkbox" class="form-check-input wa-select" value="@item.Id" data-phone="@waPhone" aria-label="Seleccionar @item.Cellphone" title="@(waAllowed ? "Seleccionar para WhatsApp" : "Requiere número válido y autorización comercial vigente en Editar")" disabled="@(!waAllowed)" /></td>
+                    <td><input type="checkbox" class="form-check-input wa-select" value="@item.Id" data-phone="@waPhone" data-name="@item.NameOrReference" aria-label="Seleccionar @item.Cellphone" title="@(waAllowed ? "Seleccionar para WhatsApp" : "Número inválido o con solicitud de no contacto registrada")" disabled="@(!waAllowed)" /></td>
                     @if (Model.CanEdit)
                     {
                         <td>
@@ -389,14 +388,12 @@
                         <div>@item.Cellphone</div>
                         <div class="small wa-row-state @(Model.WhatsAppLastSent.ContainsKey(waPhone) ? "text-success" : "text-muted")" data-wa-phone="@waPhone" data-sent="@(Model.WhatsAppLastSent.ContainsKey(waPhone) ? "yes" : "no")">
                             @if (Model.WhatsAppLastSent.TryGetValue(waPhone, out var waDate))
-                            { <span>Reactivación · Enviado @waDate.ToString("dd/MM/yyyy HH:mm")</span> }
-                            else if (Model.WhatsAppGenerated.Contains(waPhone))
-                            { <span>Reactivación · Enlace generado</span> }
+                            { <span>Reactivado: Sí · @waDate.ToString("dd/MM/yyyy HH:mm")</span> }
+                            else { <span>Reactivado: No</span> }
                         </div>
                         @if (Model.CanWhatsApp)
                         {
-                            <div class="small text-muted">@(waAllowed ? "Autorizado" : Model.WhatsAppConsents.GetValueOrDefault(waPhone)?.ConsentStatus == "DoNotContact" ? "No contactar" : "Sin autorización vigente")</div>
-                            <button type="button" class="btn btn-link btn-sm p-0 wa-single" data-record="@item.Id" disabled="@(!waAllowed)">Generar enlace</button>
+                            <button type="button" class="btn btn-link btn-sm p-0 wa-single" data-record="@item.Id" disabled="@(!waAllowed)">WhatsApp</button>
                             <button type="button" class="btn btn-link btn-sm p-0 ms-1 wa-history" data-record="@item.Id">Historial</button>
                         }
                         @if (Model.CallCounts.TryGetValue(item.Id, out var callCount) && callCount > 0)

@@ -23,15 +23,6 @@
             <div class="alert alert-warning">@warningMessage</div>
         }
 
-        <details class="border rounded p-3 mb-3">
-            <summary class="fw-semibold">WhatsApp / reactivación: @(Model.CommercialConsent == "Authorized" ? "Autorizado" : Model.CommercialConsent == "DoNotContact" ? "No contactar" : "Sin verificar")</summary>
-            <div class="row g-3 mt-1">
-                <div class="col-md-4"><label asp-for="CommercialConsent" class="form-label">Estado comercial del número</label><select asp-for="CommercialConsent" class="form-select"><option value="Unknown">Sin verificar</option><option value="Authorized">Autorizado</option><option value="DoNotContact">No contactar</option></select></div>
-                <div class="col-md-4"><label asp-for="ConsentExpiresAt" class="form-label">Vigente hasta (opcional, hora de Perú)</label><input asp-for="ConsentExpiresAt" type="datetime-local" class="form-control" /></div>
-                <div class="col-12"><label asp-for="ConsentEvidence" class="form-label">Fecha y referencia de la autorización / motivo del cambio</label><input asp-for="ConsentEvidence" maxlength="500" class="form-control" placeholder="Ej.: autorización recibida por WhatsApp el 05/11/2026" /></div>
-                <div class="col-12"><button type="submit" asp-page-handler="Consent" class="btn btn-outline-success" formnovalidate>Guardar estado comercial</button><span class="small text-muted ms-2">Se aplica al número actual guardado y a sus registros anteriores. Si cambias el celular, guarda primero el registro.</span></div>
-            </div>
-        </details>
         <div class="row g-3">
             <div class="col-md-3">
                 <label asp-for="Input.StatusCatalogId" class="form-label"></label>
