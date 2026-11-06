@@ -25,7 +25,7 @@
     <Entry x:Name="SearchEntry" Placeholder="Buscar celular o nombre"/>
     <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><VerticalStackLayout><Label Text="Intentos mínimos" FontSize="11"/><Entry x:Name="MinCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout><VerticalStackLayout Grid.Column="1"><Label Text="Intentos máximos" FontSize="11"/><Entry x:Name="MaxCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout></Grid>
     <HorizontalStackLayout Spacing="8"><CheckBox x:Name="DatesCheck"/><Label Text="Filtrar por fecha de creación" VerticalOptions="Center"/></HorizontalStackLayout>
-    <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><DatePicker x:Name="FromPicker"/><DatePicker x:Name="ToPicker" Grid.Column="1"/></Grid>
+    <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><DatePicker x:Name="FromPicker" Format="dd/MM/yyyy"/><DatePicker x:Name="ToPicker" Grid.Column="1" Format="dd/MM/yyyy"/></Grid>
     <Picker x:Name="BatchPicker" Title="Tamaño de la tanda"/>
     <Button x:Name="LoadButton" Text="Aplicar filtros y cargar" Clicked="OnLoadQueueClicked"/>
    </VerticalStackLayout></Border>

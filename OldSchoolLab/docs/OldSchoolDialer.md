@@ -99,3 +99,13 @@ volver a llamar a este prospecto". Selecciona primero el resultado del intento
 anterior. Se guarda con su identificador y luego se marca el mismo numero,
 creando un intento nuevo sin avanzar la tanda. Si falla el guardado no se llama;
 si falla el marcado, el resultado anterior permanece guardado y puedes reintentar.
+
+## Filtros y valores iniciales (1.6)
+
+La fecha de creacion y el avance automatico se activan por defecto. El rango
+inicial sigue siendo el ultimo mes; puede cambiarse antes de cargar.
+Aplicar filtros permanece disponible despues de iniciar una llamada. Si hay un
+resultado pendiente, se puede guardar el resultado seleccionado sin llamar al
+siguiente, descartar explicitamente el intento sin contarlo, o volver conservandolo.
+Si falla el guardado no se cambia la cola. Cambiar filtros pausa la tanda; para
+reanudar llamadas se pulsa Iniciar llamadas masivas. No se llama al cargar filtros.

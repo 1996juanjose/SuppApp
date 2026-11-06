@@ -22,6 +22,9 @@ public partial class MainPage : ContentPage
         BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
         OutcomePicker.ItemsSource = outcomes;
         FromPicker.Date = DateTime.Today.AddMonths(-1); ToPicker.Date = DateTime.Today;
+        DatesCheck.IsChecked = true;
+        AutomaticSwitch.IsToggled = true;
+        session.AutoAdvance = true;
         CallbackDate.Date = DateTime.Today.AddDays(1); CallbackTime.Time = new TimeSpan(10, 0, 0);
     }
     bool companiesLoaded;
@@ -44,7 +47,8 @@ public partial class MainPage : ContentPage
     void Controls()
     {
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
-        CompaniesButton.IsEnabled = LoadButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        CompaniesButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        LoadButton.IsEnabled = !busy;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
         CallButton.IsEnabled = !busy && currentIndex < prospects.Count;
@@ -100,7 +104,7 @@ public partial class MainPage : ContentPage
         token = login.Token; PasswordEntry.Text = "";
         Preferences.Default.Set("username", UsernameEntry.Text.Trim());
         LoginPanel.IsVisible = false; QueuePanel.IsVisible = true; SessionLabel.Text = $"{login.CompanyName ?? company.Name} · {login.Username}";
-        cursor = 0; session.Reset(); AutomaticSwitch.IsToggled = false; currentQuery = BuildQuery(); await LoadAsync();
+        cursor = 0; session.Reset(); AutomaticSwitch.IsToggled = true; session.AutoAdvance = true; currentQuery = BuildQuery(); await LoadAsync();
     });
     string BuildQuery()
     {
@@ -108,7 +112,12 @@ public partial class MainPage : ContentPage
         var query = $"callFilter={filterValues[Math.Max(0, FilterPicker.SelectedIndex)]}&take={take}&search={Uri.EscapeDataString(SearchEntry.Text?.Trim() ?? "")}";
         foreach (var (name, text) in new[] { ("minAttempts", MinCallsEntry.Text), ("maxAttempts", MaxCallsEntry.Text) })
             if (!string.IsNullOrWhiteSpace(text)) { if (!int.TryParse(text, out var value) || value < 0) throw new InvalidOperationException("Los intentos deben ser enteros positivos."); query += $"&{name}={value}"; }
-        if (DatesCheck.IsChecked) query += $"&fromDate={FromPicker.Date:yyyy-MM-dd}&toDate={ToPicker.Date:yyyy-MM-dd}";
+        if (DatesCheck.IsChecked)
+        {
+            if (!FromPicker.Date.HasValue || !ToPicker.Date.HasValue || FromPicker.Date.Value.Date > ToPicker.Date.Value.Date)
+                throw new InvalidOperationException("Selecciona un rango de fechas válido.");
+            query += $"&fromDate={FromPicker.Date:yyyy-MM-dd}&toDate={ToPicker.Date:yyyy-MM-dd}";
+        }
         return query;
     }
     async Task LoadAsync()
@@ -119,9 +128,34 @@ public partial class MainPage : ContentPage
         using var response = await http.SendAsync(request); await EnsureAsync(response);
         var loaded = await response.Content.ReadFromJsonAsync<List<Prospect>>() ?? [];
         if (response.Headers.TryGetValues("X-Next-Cursor", out var values) && int.TryParse(values.FirstOrDefault(), out var next)) cursor = next;
-        prospects.Clear(); prospects.AddRange(loaded); currentIndex = 0; ShowCurrent(); Message(loaded.Count == 0 ? "Sin prospectos en esta tanda. Puedes cargar la siguiente o cambiar filtros." : "Tanda lista. Activa el candado si deseas avanzar automáticamente.");
+        prospects.Clear(); prospects.AddRange(loaded); currentIndex = 0; ShowCurrent(); Message(loaded.Count == 0 ? "Sin prospectos en esta tanda. Puedes cargar la siguiente o cambiar filtros." : "Tanda lista. Pulsa Iniciar llamadas masivas para comenzar.");
     }
-    async void OnLoadQueueClicked(object? sender, EventArgs e) => await RunAsync(async () => { if (session.AwaitingResult) throw new InvalidOperationException("Guarda el resultado pendiente."); currentQuery = BuildQuery(); cursor = 0; await LoadAsync(); });
+    async void OnLoadQueueClicked(object? sender, EventArgs e)
+    {
+        if (busy) return;
+        string query;
+        try { query = BuildQuery(); }
+        catch (Exception ex) { Message(ex.Message, true); return; }
+        session.Pause();
+        if (session.AwaitingResult)
+        {
+            var choice = await DisplayActionSheetAsync("Hay una llamada sin guardar", "Volver", null,
+                "Guardar resultado y filtrar", "Descartar intento y filtrar");
+            if (choice == "Guardar resultado y filtrar")
+            {
+                if (OutcomePicker.SelectedItem is not string)
+                { Message("Selecciona el resultado de la llamada y vuelve a pulsar Aplicar filtros.", true); return; }
+                await SaveResultAsync(false);
+                if (session.AwaitingResult) return; // Failed saves keep the pending attempt intact.
+            }
+            else if (choice == "Descartar intento y filtrar")
+            {
+                session.CancelAttempt(); OutcomePicker.SelectedIndex = -1; NotesEditor.Text = "";
+            }
+            else { Controls(); return; }
+        }
+        await RunAsync(async () => { currentQuery = query; cursor = 0; await LoadAsync(); });
+    }
     async void OnNextBatchClicked(object? sender, EventArgs e) => await RunAsync(LoadAsync);
     async Task CallAsync()
     {
@@ -202,7 +236,7 @@ public partial class MainPage : ContentPage
     {
         if (busy) return;
         if (session.AwaitingResult && !await DisplayAlertAsync("Resultado pendiente", "¿Salir sin guardar el resultado de esta llamada?", "Salir", "Cancelar")) return;
-        session.Reset(); token = null; prospects.Clear(); QueuePanel.IsVisible = false; LoginPanel.IsVisible = true; AutomaticSwitch.IsToggled = false; Message("Sesión cerrada.");
+        session.Reset(); token = null; prospects.Clear(); QueuePanel.IsVisible = false; LoginPanel.IsVisible = true; AutomaticSwitch.IsToggled = true; session.AutoAdvance = true; Message("Sesión cerrada.");
     }
     public sealed class Company { public int Id { get; set; } public string Name { get; set; } = ""; }
     sealed class Login { public string? Token { get; set; } public string? Username { get; set; } public int? CompanyId { get; set; } public string? CompanyName { get; set; } }
