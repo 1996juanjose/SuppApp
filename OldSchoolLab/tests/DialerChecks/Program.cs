@@ -12,7 +12,7 @@ static void Check(bool ok, string name) { if (!ok) throw new Exception(name); Co
 var config = new ConfigurationManager(); config["App:TimeZoneId"] = "America/Lima";
 await using var db = new ApiDbContext(new DbContextOptionsBuilder<ApiDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" });
-db.CustomerRecords.Add(new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001" }); await db.SaveChangesAsync();
+db.CustomerRecords.Add(new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001", CallActivity = "2026-11-06 11:56 - Actividad anterior" }); await db.SaveChangesAsync();
 var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim("company_id", "1"), new Claim("user_id", "test"), new Claim(ClaimTypes.Name, "TEST")], "test"));
 db.CustomerRecords.AddRange(new CustomerRecord { Id = 2, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000002" }, new CustomerRecord { Id = 3, CompanyId = 1, StatusCatalogId = 1, Cellphone = "123" });
 await db.SaveChangesAsync();
@@ -34,6 +34,8 @@ await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "No interesado
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "Contestó" }, default);
 var activity = (await db.CustomerRecords.SingleAsync(x => x.Id == 1)).CallActivity;
 Check(activity.Contains("No contestó (1 vez)") && activity.Contains("No contestó (2 veces)") && activity.Contains("Competencia") && activity.Contains("No interesado") && activity.Contains("Contestó"), "all outcomes and no-answer counts reach call activity");
+Check(!System.Text.RegularExpressions.Regex.IsMatch(activity, @"\d{4}-\d{2}-\d{2} \d{2}:\d{2}") && activity.Contains("Actividad anterior"), "call activity removes generated date prefixes and preserves prior text");
+Check((await db.LeadCallAttempts.FirstAsync()).CreatedAt != default, "call history still keeps its timestamp");
 foreach (var removed in new[] { "Ocupado", "Número incorrecto", "Volver a llamar" }) Check(await calls.Save(1, new() { Outcome = removed }, default) is BadRequestObjectResult, "removed outcome rejected: " + removed);
 config["Jwt:Key"] = new string('x', 64); config["Jwt:ExpiryMinutes"] = "120";
 var jwt = new JwtTokenService(config); var reader = new JwtSecurityTokenHandler();

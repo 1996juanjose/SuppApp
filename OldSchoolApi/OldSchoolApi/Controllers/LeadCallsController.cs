@@ -96,8 +96,9 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         record.IsCallConcrete = !next.HasValue;
         var noAnswerCount = await db.LeadCallAttempts.CountAsync(x => x.RecordId == id && x.CompanyId == CompanyId && x.Outcome == "No contestó", cancellationToken);
         var activityOutcome = outcome == "No contestó" ? $"No contestó ({noAnswerCount + 1} {(noAnswerCount == 0 ? "vez" : "veces")})" : outcome;
-        var line = $"{now:yyyy-MM-dd HH:mm} - {activityOutcome}{(attempt.Notes.Length > 0 ? ": " + attempt.Notes : "")}";
-        record.CallActivity = $"{record.CallActivity}\n{line}".Trim();
+        var line = $"{activityOutcome}{(attempt.Notes.Length > 0 ? ": " + attempt.Notes : "")}";
+        var priorActivity = System.Text.RegularExpressions.Regex.Replace(record.CallActivity ?? "", @"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2} - ", "");
+        record.CallActivity = $"{priorActivity}\n{line}".Trim();
         if (record.CallActivity.Length > 300) record.CallActivity = record.CallActivity[^300..];
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException { SqlState: "23505" })
