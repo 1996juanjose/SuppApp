@@ -149,3 +149,13 @@ ni reprogramacion de la imagen por esta anotacion.
 En 1.8 se retiran el encabezado promocional y la descripcion superior. El borde
 del formulario de acceso se oculta completo al iniciar sesion, evitando el
 recuadro vacio que ocupaba espacio encima de los filtros.
+
+## Pantalla dedicada de llamada (1.9)
+
+Filtros y preparacion permanecen en MainPage. Iniciar llamadas abre CallPage,
+una pantalla nativa separada que permanece al volver de la llamada telefonica.
+Muestra el prospecto, los cuatro resultados y notas. Debajo quedan solo Guardar
+y llamar al siguiente y Omitir y seguir. Omitir avanza sin enviar un resultado
+ni incrementar intentos. La accion explicita Omitir abre el siguiente numero.
+Volver a filtros conserva el resultado pendiente; Continuar llamada actual
+permite regresar a la ficha sin volver a marcar ni perder las notas.

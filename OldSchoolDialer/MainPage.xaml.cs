@@ -19,6 +19,7 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+        QueuePanel.Children.Remove(CallWorkspace);
         UsernameEntry.Text = Preferences.Default.Get("username", "");
         FilterPicker.ItemsSource = filters; FilterPicker.SelectedIndex = 0;
         BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
@@ -41,6 +42,18 @@ public partial class MainPage : ContentPage
     }
     const string SessionKey = "oldschool.mobile.session";
     bool companiesLoaded, restoreAttempted;
+    CallPage? callPage;
+    async Task ShowCallPageAsync()
+    {
+        callPage ??= new CallPage(CallWorkspace, async () =>
+        {
+            if (busy || !Navigation.ModalStack.Contains(callPage)) return;
+            session.Pause();
+            await Navigation.PopModalAsync();
+            Controls();
+        });
+        if (!Navigation.ModalStack.Contains(callPage)) await Navigation.PushModalAsync(callPage);
+    }
     sealed class FilterSettings
     {
         public int Filter { get; set; }
@@ -109,7 +122,11 @@ public partial class MainPage : ContentPage
             await RunAsync(LoadCompaniesAsync);
     }
     static string Url(Uri root, string path) => root.ToString().TrimEnd('/') + "/" + path;
-    void Message(string text, bool error = false) { MessageLabel.Text = text; MessageLabel.TextColor = error ? Colors.Firebrick : Color.FromArgb("#047857"); }
+    void Message(string text, bool error = false)
+    {
+        MessageLabel.Text = CallMessageLabel.Text = text;
+        MessageLabel.TextColor = CallMessageLabel.TextColor = error ? Colors.Firebrick : Color.FromArgb("#047857");
+    }
     async Task RunAsync(Func<Task> action)
     {
         if (busy) return;
@@ -121,12 +138,13 @@ public partial class MainPage : ContentPage
     void Controls()
     {
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
+        CallBusyIndicator.IsVisible = CallBusyIndicator.IsRunning = busy;
+        SkipButton.IsEnabled = !busy && currentIndex < prospects.Count;
         CompaniesButton.IsEnabled = !busy && !session.AwaitingResult;
         LoadButton.IsEnabled = !busy;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
-        StartButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
-        CallButton.IsEnabled = !busy && currentIndex < prospects.Count;
-        CallButton.Text = session.AwaitingResult ? "Guardar resultado y volver a llamar a este prospecto" : "Llamar a este prospecto";
+        StartButton.IsEnabled = !busy && currentIndex < prospects.Count;
+        StartButton.Text = session.AwaitingResult ? "Continuar llamada actual" : "Iniciar llamadas masivas";
         SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
         // Pausing is always available, including while a save is in flight.
         SaveResultButton.Text = "Guardar y llamar al siguiente";
@@ -232,16 +250,27 @@ public partial class MainPage : ContentPage
     async Task CallAsync()
     {
         if (currentIndex >= prospects.Count || session.AwaitingResult) return;
+        await ShowCallPageAsync();
         var campaignCall = session.Running;
         await PhoneCalls.StartAsync(prospects[currentIndex].Cellphone, () => !campaignCall || session.Running);
         session.CallStarted(); Message("Al terminar la llamada, vuelve aquí, elige el resultado y guárdalo.");
     }
-    async void OnStartClicked(object? sender, EventArgs e) => await RunAsync(async () => { session.Start(); await CallAsync(); });
-    async void OnCallClicked(object? sender, EventArgs e)
+    async void OnStartClicked(object? sender, EventArgs e) => await RunAsync(async () =>
     {
-        if (session.AwaitingResult) await SaveResultAsync(false, repeatCurrent: true);
-        else await RunAsync(CallAsync);
-    }
+        await ShowCallPageAsync();
+        if (!session.AwaitingResult) { session.Start(); await CallAsync(); }
+    });
+    async void OnSkipClicked(object? sender, EventArgs e) => await RunAsync(async () =>
+    {
+        if (currentIndex >= prospects.Count) return;
+        session.CancelAttempt(); // Explicit skip never invents a completed call or posts to the API.
+        currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = "";
+        if (currentIndex >= prospects.Count) await LoadAsync();
+        ShowCurrent();
+        if (currentIndex < prospects.Count)
+        { session.Start(); await CallAsync(); }
+        else Message(currentIndex < prospects.Count ? "Prospecto omitido. Puedes llamar al siguiente." : "No quedan prospectos con estos filtros.");
+    });
     void OnAutomaticToggled(object? sender, ToggledEventArgs e) { session.AutoAdvance = e.Value; LockLabel.Text = e.Value ? "🔒 Avance automático activado" : "🔓 Avance manual"; Controls(); }
     void OnOutcomeSelected(object? sender, EventArgs e)
     {
@@ -294,7 +323,7 @@ public partial class MainPage : ContentPage
     });
     void ShowCurrent()
     {
-        QueueSummaryLabel.Text = $"{prospects.Count} prospectos en esta tanda · {Math.Min(currentIndex, prospects.Count)} completados";
+        CallProgressLabel.Text = QueueSummaryLabel.Text = $"{prospects.Count} prospectos en esta tanda · {Math.Min(currentIndex, prospects.Count)} completados";
         CurrentProspectPanel.IsVisible = currentIndex < prospects.Count;
         if (!CurrentProspectPanel.IsVisible) return;
         var p = prospects[currentIndex];

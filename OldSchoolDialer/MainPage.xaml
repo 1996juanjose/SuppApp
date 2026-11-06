@@ -31,13 +31,16 @@
     <Button x:Name="StartButton" Text="Iniciar llamadas masivas" Clicked="OnStartClicked" BackgroundColor="#2563EB"/>
    </VerticalStackLayout></Border>
    <Label x:Name="QueueSummaryLabel" TextColor="#64748B"/>
+   <VerticalStackLayout x:Name="CallWorkspace" Spacing="12">
+   <ActivityIndicator x:Name="CallBusyIndicator" IsVisible="False" IsRunning="False" Color="#2563EB"/>
+   <Label x:Name="CallMessageLabel" FontSize="13" TextColor="#047857"/>
+   <Label x:Name="CallProgressLabel" FontSize="12" TextColor="#64748B"/>
    <Border x:Name="CurrentProspectPanel" IsVisible="False" Stroke="#E2E8F0" BackgroundColor="White" Padding="20" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="14">
     <Label x:Name="ProspectPositionLabel" TextColor="#64748B" FontSize="11"/>
     <Label x:Name="ProspectNameLabel" FontSize="23" FontAttributes="Bold"/>
     <Label x:Name="ProspectPhoneLabel" FontSize="24" TextColor="#2563EB"/>
     <Label x:Name="CallCountLabel" FontAttributes="Bold" TextColor="#7C3AED"/>
     <Label x:Name="PreviousOutcomeLabel" FontSize="12" TextColor="#64748B"/>
-    <Button x:Name="CallButton" Text="Llamar a este prospecto" Clicked="OnCallClicked" BackgroundColor="#059669"/>
     <Label Text="1. Selecciona el resultado de la llamada" FontAttributes="Bold"/>
     <FlexLayout x:Name="OutcomeChoices" Wrap="Wrap">
      <Button Text="Contestó" CommandParameter="Contestó" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
@@ -51,7 +54,10 @@
     <VerticalStackLayout x:Name="CallbackPanel" IsVisible="False"><Label Text="Volver a llamar (hora de Perú)" FontSize="12"/><DatePicker x:Name="CallbackDate"/><TimePicker x:Name="CallbackTime" Format="HH:mm"/></VerticalStackLayout>
     <Editor x:Name="NotesEditor" Placeholder="Notas opcionales" AutoSize="TextChanges" MaxLength="250"/>
     <Button x:Name="SaveResultButton" Text="Guardar y llamar al siguiente" Clicked="OnSaveResultClicked" BackgroundColor="#2563EB"/>
+    <Button x:Name="SkipButton" Text="Omitir y seguir" Clicked="OnSkipClicked" BackgroundColor="#E2E8F0" TextColor="#334155"/>
+    <Label Text="Omitir pasa al siguiente sin registrar un intento ni un resultado." FontSize="11" TextColor="#64748B"/>
    </VerticalStackLayout></Border>
+   </VerticalStackLayout>
   </VerticalStackLayout>
  </VerticalStackLayout></ScrollView>
 </ContentPage>
