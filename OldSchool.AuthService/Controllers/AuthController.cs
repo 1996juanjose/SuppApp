@@ -23,6 +23,7 @@ public class AuthController(JwtTokenService jwtTokenService, AuthDbContext db) :
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public int? CompanyId { get; set; }
+        public bool RememberSession { get; set; }
     }
 
     [HttpGet("companies")]
@@ -133,7 +134,7 @@ public class AuthController(JwtTokenService jwtTokenService, AuthDbContext db) :
             companyName = selectedCompany?.Name;
         }
 
-        var token = jwtTokenService.CreateToken(user.UserName ?? normalizedUserName, roles, companyId, user.Id);
+        var token = jwtTokenService.CreateToken(user.UserName ?? normalizedUserName, roles, companyId, user.Id, request.RememberSession);
         return Ok(new
         {
             token,

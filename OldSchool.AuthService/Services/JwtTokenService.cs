@@ -7,12 +7,15 @@ namespace OldSchool.AuthService.Services;
 
 public sealed class JwtTokenService(IConfiguration configuration)
 {
-    public string CreateToken(string username, IEnumerable<string> roles, int? companyId = null, string? userId = null)
+    public string CreateToken(string username, IEnumerable<string> roles, int? companyId = null, string? userId = null, bool rememberSession = false)
     {
         var issuer = configuration["Jwt:Issuer"] ?? "OldSchool.AuthService";
         var audience = configuration["Jwt:Audience"] ?? "OldSchool.Microservices";
         var key = configuration["Jwt:Key"] ?? throw new InvalidOperationException("No se configuró Jwt:Key.");
         var expiryMinutes = int.TryParse(configuration["Jwt:ExpiryMinutes"], out var minutes) ? minutes : 120;
+
+        if (rememberSession)
+            expiryMinutes = Math.Clamp(int.TryParse(configuration["Jwt:MobileExpiryMinutes"], out var mobileMinutes) ? mobileMinutes : 10080, 60, 10080);
 
         var claims = new List<Claim>
         {

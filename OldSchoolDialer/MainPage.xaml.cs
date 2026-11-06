@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -11,7 +13,7 @@ public partial class MainPage : ContentPage
     readonly List<Prospect> prospects = [];
     readonly string[] filters = ["Sin llamar", "Ya llamados", "Volver a llamar (pendientes)", "Todos"];
     readonly string[] filterValues = ["uncalled", "called", "callback", "all"];
-    readonly string[] outcomes = ["Contestó", "No contestó", "Ocupado", "Número incorrecto", "Volver a llamar"];
+    readonly string[] outcomes = ["Contestó", "No contestó", "Competencia", "No interesado"];
     string? token; Uri? apiUri; int currentIndex, cursor; bool busy;
     string? currentQuery;
     public MainPage()
@@ -25,12 +27,84 @@ public partial class MainPage : ContentPage
         DatesCheck.IsChecked = true;
         AutomaticSwitch.IsToggled = true;
         session.AutoAdvance = true;
+        RestoreFilters();
+        SearchEntry.TextChanged += (_, _) => SaveFilters();
+        MinCallsEntry.TextChanged += (_, _) => SaveFilters();
+        MaxCallsEntry.TextChanged += (_, _) => SaveFilters();
+        FilterPicker.SelectedIndexChanged += (_, _) => SaveFilters();
+        BatchPicker.SelectedIndexChanged += (_, _) => SaveFilters();
+        DatesCheck.CheckedChanged += (_, _) => SaveFilters();
+        FromPicker.DateSelected += (_, _) => SaveFilters();
+        ToPicker.DateSelected += (_, _) => SaveFilters();
+        AutomaticSwitch.Toggled += (_, _) => SaveFilters();
         CallbackDate.Date = DateTime.Today.AddDays(1); CallbackTime.Time = new TimeSpan(10, 0, 0);
     }
-    bool companiesLoaded;
+    const string SessionKey = "oldschool.mobile.session";
+    bool companiesLoaded, restoreAttempted;
+    sealed class FilterSettings
+    {
+        public int Filter { get; set; }
+        public int Batch { get; set; } = 1;
+        public string? Search { get; set; }
+        public string? Min { get; set; }
+        public string? Max { get; set; }
+        public bool Dates { get; set; } = true;
+        public bool Automatic { get; set; } = true;
+        public DateTime? From { get; set; }
+        public DateTime? To { get; set; }
+    }
+    void SaveFilters() => Preferences.Default.Set("dialer.filters", JsonSerializer.Serialize(new FilterSettings
+    {
+        Filter = FilterPicker.SelectedIndex, Batch = BatchPicker.SelectedIndex, Search = SearchEntry.Text,
+        Min = MinCallsEntry.Text, Max = MaxCallsEntry.Text, Dates = DatesCheck.IsChecked,
+        Automatic = AutomaticSwitch.IsToggled, From = FromPicker.Date, To = ToPicker.Date
+    }));
+    void RestoreFilters()
+    {
+        try
+        {
+            var value = JsonSerializer.Deserialize<FilterSettings>(Preferences.Default.Get("dialer.filters", "null"));
+            if (value is null) return;
+            FilterPicker.SelectedIndex = Math.Clamp(value.Filter, 0, 3); BatchPicker.SelectedIndex = Math.Clamp(value.Batch, 0, 3);
+            SearchEntry.Text = value.Search; MinCallsEntry.Text = value.Min; MaxCallsEntry.Text = value.Max;
+            DatesCheck.IsChecked = value.Dates; AutomaticSwitch.IsToggled = value.Automatic; session.AutoAdvance = value.Automatic;
+            FromPicker.Date = value.From ?? DateTime.Today.AddMonths(-1); ToPicker.Date = value.To ?? DateTime.Today;
+        }
+        catch (JsonException) { Preferences.Default.Remove("dialer.filters"); }
+    }
+    void UseLogin(Login login)
+    {
+        token = login.Token; apiUri = ServiceEndpoints.Api;
+        LoginPanel.IsVisible = false; QueuePanel.IsVisible = true;
+        SessionLabel.Text = $"{login.CompanyName} · {login.Username}";
+        cursor = 0; session.Reset(); session.AutoAdvance = AutomaticSwitch.IsToggled;
+        currentQuery = BuildQuery();
+    }
+    async Task RestoreLoginAsync()
+    {
+        string? raw;
+        try { raw = await SecureStorage.Default.GetAsync(SessionKey); }
+        catch { SecureStorage.Default.Remove(SessionKey); return; }
+        if (string.IsNullOrEmpty(raw)) return;
+        try
+        {
+            var login = JsonSerializer.Deserialize<Login>(raw);
+            var payload = login?.Token?.Split('.')[1].Replace('-', '+').Replace('_', '/');
+            if (payload is null || !login!.CompanyId.HasValue) return;
+            using var jwt = JsonDocument.Parse(Convert.FromBase64String(payload.PadRight((payload.Length + 3) / 4 * 4, '=')));
+            if (!jwt.RootElement.TryGetProperty("exp", out var expiry) || expiry.GetInt64() <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            { SecureStorage.Default.Remove(SessionKey); return; }
+            UseLogin(login);
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or IndexOutOfRangeException)
+        { SecureStorage.Default.Remove(SessionKey); return; }
+        await LoadAsync();
+    }
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        if (!restoreAttempted && !busy)
+        { restoreAttempted = true; await RunAsync(RestoreLoginAsync); }
         if (!companiesLoaded && token is null && !busy)
             await RunAsync(LoadCompaniesAsync);
     }
@@ -47,21 +121,19 @@ public partial class MainPage : ContentPage
     void Controls()
     {
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
-        CompaniesButton.IsEnabled = NextBatchButton.IsEnabled = !busy && !session.AwaitingResult;
+        CompaniesButton.IsEnabled = !busy && !session.AwaitingResult;
         LoadButton.IsEnabled = !busy;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = !busy && !session.AwaitingResult && currentIndex < prospects.Count;
         CallButton.IsEnabled = !busy && currentIndex < prospects.Count;
         CallButton.Text = session.AwaitingResult ? "Guardar resultado y volver a llamar a este prospecto" : "Llamar a este prospecto";
-        SaveOnlyButton.IsEnabled = SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
-        CancelAttemptButton.IsVisible = session.AwaitingResult;
-        CancelAttemptButton.IsEnabled = !busy;
+        SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
         // Pausing is always available, including while a save is in flight.
         SaveResultButton.Text = "Guardar y llamar al siguiente";
     }
     async Task EnsureAsync(HttpResponseMessage response)
     {
-        if (response.StatusCode == HttpStatusCode.Unauthorized) { session.Pause(); throw new InvalidOperationException("La sesión venció. Sal y vuelve a iniciar sesión; no se avanzó la cola."); }
+        if (response.StatusCode == HttpStatusCode.Unauthorized) { session.Pause(); token = null; SecureStorage.Default.Remove(SessionKey); LoginPanel.IsVisible = true; QueuePanel.IsVisible = false; throw new InvalidOperationException("La sesión venció. Sal y vuelve a iniciar sesión; no se avanzó la cola."); }
         if (response.IsSuccessStatusCode) return;
         var text = await response.Content.ReadAsStringAsync();
         throw new InvalidOperationException($"El servidor respondió {(int)response.StatusCode}: {text[..Math.Min(300, text.Length)]}");
@@ -98,13 +170,14 @@ public partial class MainPage : ContentPage
     {
         if (CompanyPicker.SelectedItem is not Company company || string.IsNullOrWhiteSpace(UsernameEntry.Text) || string.IsNullOrWhiteSpace(PasswordEntry.Text)) throw new InvalidOperationException("Selecciona empresa, usuario y contraseña.");
         var authUri = ServiceEndpoints.Auth; apiUri = ServiceEndpoints.Api;
-        using var response = await http.PostAsJsonAsync(Url(authUri, "api/auth/login"), new { username = UsernameEntry.Text.Trim(), password = PasswordEntry.Text, companyId = company.Id });
+        using var response = await http.PostAsJsonAsync(Url(authUri, "api/auth/login"), new { username = UsernameEntry.Text.Trim(), password = PasswordEntry.Text, companyId = company.Id, rememberSession = true });
         await EnsureAsync(response); var login = await response.Content.ReadFromJsonAsync<Login>() ?? throw new InvalidOperationException("Respuesta de sesión inválida.");
         if (string.IsNullOrWhiteSpace(login.Token) || login.CompanyId != company.Id) throw new InvalidOperationException("La cuenta no tiene la empresa seleccionada.");
         token = login.Token; PasswordEntry.Text = "";
         Preferences.Default.Set("username", UsernameEntry.Text.Trim());
         LoginPanel.IsVisible = false; QueuePanel.IsVisible = true; SessionLabel.Text = $"{login.CompanyName ?? company.Name} · {login.Username}";
-        cursor = 0; session.Reset(); AutomaticSwitch.IsToggled = true; session.AutoAdvance = true; currentQuery = BuildQuery(); await LoadAsync();
+        await SecureStorage.Default.SetAsync(SessionKey, JsonSerializer.Serialize(login));
+        UseLogin(login); await LoadAsync();
     });
     string BuildQuery()
     {
@@ -156,7 +229,6 @@ public partial class MainPage : ContentPage
         }
         await RunAsync(async () => { currentQuery = query; cursor = 0; await LoadAsync(); });
     }
-    async void OnNextBatchClicked(object? sender, EventArgs e) => await RunAsync(LoadAsync);
     async Task CallAsync()
     {
         if (currentIndex >= prospects.Count || session.AwaitingResult) return;
@@ -169,13 +241,6 @@ public partial class MainPage : ContentPage
     {
         if (session.AwaitingResult) await SaveResultAsync(false, repeatCurrent: true);
         else await RunAsync(CallAsync);
-    }
-    void OnPauseClicked(object? sender, EventArgs e) { session.Pause(); Message("Tanda pausada. El resultado pendiente se conserva."); Controls(); }
-    async void OnCancelAttemptClicked(object? sender, EventArgs e)
-    {
-        if (busy || !session.AwaitingResult) return;
-        if (!await DisplayAlertAsync("Cancelar intento", "Úsalo si no llegaste a realizar la llamada. No se guardará ni se contará el intento.", "Cancelar intento", "Volver")) return;
-        session.CancelAttempt(); OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; Message("Intento cancelado. La tanda está pausada."); Controls();
     }
     void OnAutomaticToggled(object? sender, ToggledEventArgs e) { session.AutoAdvance = e.Value; LockLabel.Text = e.Value ? "🔒 Avance automático activado" : "🔓 Avance manual"; Controls(); }
     void OnOutcomeSelected(object? sender, EventArgs e)
@@ -196,7 +261,6 @@ public partial class MainPage : ContentPage
         Controls();
     }
     async void OnSaveResultClicked(object? sender, EventArgs e) => await SaveResultAsync(true);
-    async void OnSaveOnlyClicked(object? sender, EventArgs e) => await SaveResultAsync(false);
     async Task SaveResultAsync(bool callNext, bool repeatCurrent = false) => await RunAsync(async () =>
     {
         if (!session.AwaitingResult || currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome) throw new InvalidOperationException("Elige el resultado de la llamada pendiente.");
@@ -207,7 +271,7 @@ public partial class MainPage : ContentPage
         using var response = await http.SendAsync(request); await EnsureAsync(response);
         var saved = await response.Content.ReadFromJsonAsync<SavedCall>() ?? throw new InvalidOperationException("No se pudo confirmar el resultado. Reintenta guardar.");
         var current = prospects[currentIndex];
-        current.CallCount = saved.CallCount; current.LastOutcome = outcome;
+        current.CallCount = saved.CallCount; current.NoAnswerCount = saved.NoAnswerCount; current.LastOutcome = outcome;
         var advance = session.ResultSaved(callNext);
         if (!repeatCurrent) currentIndex++;
         OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
@@ -217,16 +281,25 @@ public partial class MainPage : ContentPage
             await CallAsync();
             return;
         }
-        Message("Resultado guardado. " + (advance ? "Llamando al siguiente…" : "Elige cuándo llamar al siguiente."));
-        if (advance && session.Running && currentIndex < prospects.Count) await CallAsync();
-        if (currentIndex >= prospects.Count) { session.Pause(); Message("Tanda terminada. Carga la siguiente para continuar."); }
+        if (advance && session.Running && currentIndex >= prospects.Count)
+        {
+            await LoadAsync();
+            if (prospects.Count > 0) session.Start();
+        }
+        if (advance && session.Running && currentIndex < prospects.Count)
+        { Message("Resultado guardado. Llamando al siguiente…"); await CallAsync(); }
+        else if (currentIndex >= prospects.Count)
+        { session.Pause(); Message("No quedan prospectos con estos filtros. Puedes aplicar otros filtros."); }
+        else Message("Resultado guardado.");
     });
     void ShowCurrent()
     {
         QueueSummaryLabel.Text = $"{prospects.Count} prospectos en esta tanda · {Math.Min(currentIndex, prospects.Count)} completados";
         CurrentProspectPanel.IsVisible = currentIndex < prospects.Count;
         if (!CurrentProspectPanel.IsVisible) return;
-        var p = prospects[currentIndex]; ProspectNameLabel.Text = string.IsNullOrWhiteSpace(p.NameOrReference) ? "Prospecto" : p.NameOrReference; ProspectPhoneLabel.Text = p.Cellphone;
+        var p = prospects[currentIndex];
+        NoAnswerButton.Text = $"No contestó ({p.NoAnswerCount + 1} {(p.NoAnswerCount == 0 ? "vez" : "veces")})";
+        ProspectNameLabel.Text = string.IsNullOrWhiteSpace(p.NameOrReference) ? "Prospecto" : p.NameOrReference; ProspectPhoneLabel.Text = p.Cellphone;
         ProspectPositionLabel.Text = $"PROSPECTO {currentIndex + 1} DE {prospects.Count}";
         CallCountLabel.Text = p.CallCount == 0 ? "Sin llamar" : $"Se llamó {p.CallCount} {(p.CallCount == 1 ? "vez" : "veces")}";
         PreviousOutcomeLabel.Text = p.LastOutcome is null ? "Aún no tiene intentos registrados." : $"Último resultado: {p.LastOutcome} · {p.LastCallAt:dd/MM HH:mm}";
@@ -236,10 +309,11 @@ public partial class MainPage : ContentPage
     {
         if (busy) return;
         if (session.AwaitingResult && !await DisplayAlertAsync("Resultado pendiente", "¿Salir sin guardar el resultado de esta llamada?", "Salir", "Cancelar")) return;
+        SecureStorage.Default.Remove(SessionKey);
         session.Reset(); token = null; prospects.Clear(); QueuePanel.IsVisible = false; LoginPanel.IsVisible = true; AutomaticSwitch.IsToggled = true; session.AutoAdvance = true; Message("Sesión cerrada.");
     }
     public sealed class Company { public int Id { get; set; } public string Name { get; set; } = ""; }
     sealed class Login { public string? Token { get; set; } public string? Username { get; set; } public int? CompanyId { get; set; } public string? CompanyName { get; set; } }
-    sealed class SavedCall { public int CallCount { get; set; } }
-    sealed class Prospect { public int Id { get; set; } public string Cellphone { get; set; } = ""; public string? NameOrReference { get; set; } public int CallCount { get; set; } public string? LastOutcome { get; set; } public DateTime? LastCallAt { get; set; } }
+    sealed class SavedCall { public int CallCount { get; set; } public int NoAnswerCount { get; set; } }
+    sealed class Prospect { public int NoAnswerCount { get; set; } public int Id { get; set; } public string Cellphone { get; set; } = ""; public string? NameOrReference { get; set; } public int CallCount { get; set; } public string? LastOutcome { get; set; } public DateTime? LastCallAt { get; set; } }
 }

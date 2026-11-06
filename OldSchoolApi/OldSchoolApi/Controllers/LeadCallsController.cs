@@ -14,7 +14,7 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
 {
     private int? CompanyId => int.TryParse(User.FindFirstValue("company_id"), out var id) ? id : null;
     private string ActorId => User.FindFirstValue("user_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "";
-    public static readonly string[] Outcomes = ["Contestó", "No contestó", "Ocupado", "Número incorrecto", "Volver a llamar"];
+    public static readonly string[] Outcomes = ["Contestó", "No contestó", "Competencia", "No interesado"];
 
     [HttpGet("prospect-calls/queue")]
     public async Task<IActionResult> Queue(CancellationToken cancellationToken, [FromQuery] string callFilter = "all",
@@ -36,6 +36,7 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         if (toDate.HasValue) { var end = toDate.Value.Date.AddDays(1); query = query.Where(x => x.CreatedAt < end); }
         var leads = query.Select(x => new {
             x.Id, x.Cellphone, x.NameOrReference, x.CreatedAt, x.CallActivity, x.CallScheduledAt, x.IsCallConcrete,
+            NoAnswerCount = db.LeadCallAttempts.Count(a => a.RecordId == x.Id && a.CompanyId == CompanyId && a.Outcome == "No contestó"),
             CallCount = db.LeadCallAttempts.Count(a => a.RecordId == x.Id && a.CompanyId == CompanyId),
             LastCallAt = db.LeadCallAttempts.Where(a => a.RecordId == x.Id && a.CompanyId == CompanyId).Max(a => (DateTime?)a.CreatedAt),
             LastOutcome = db.LeadCallAttempts.Where(a => a.RecordId == x.Id && a.CompanyId == CompanyId).OrderByDescending(a => a.CreatedAt).ThenByDescending(a => a.Id).Select(a => a.Outcome).FirstOrDefault()
@@ -49,7 +50,7 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         Response.Headers["X-Next-Cursor"] = page.Count == 0 ? afterId.ToString() : page[^1].Id.ToString();
         return Ok(page.Where(x => ValidPhone(x.Cellphone)).Select(x => new { x.Id,
             cellphone = NormalizePhone(x.Cellphone), x.NameOrReference, x.CreatedAt, x.CallActivity,
-            x.CallCount, x.LastCallAt, x.LastOutcome, nextCallAt = x.IsCallConcrete ? null : x.CallScheduledAt,
+            x.CallCount, x.NoAnswerCount, x.LastCallAt, x.LastOutcome, nextCallAt = x.IsCallConcrete ? null : x.CallScheduledAt,
             callLabel = x.CallCount == 0 ? "Sin llamar" : $"Se llamo {x.CallCount} {(x.CallCount == 1 ? "vez" : "veces")}" }));
     }
 
@@ -90,7 +91,9 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         db.LeadCallAttempts.Add(attempt);
         record.CallScheduledAt = next;
         record.IsCallConcrete = !next.HasValue;
-        var line = $"{now:yyyy-MM-dd HH:mm} - {outcome}{(attempt.Notes.Length > 0 ? ": " + attempt.Notes : "")}";
+        var noAnswerCount = await db.LeadCallAttempts.CountAsync(x => x.RecordId == id && x.CompanyId == CompanyId && x.Outcome == "No contestó", cancellationToken);
+        var activityOutcome = outcome == "No contestó" ? $"No contestó ({noAnswerCount + 1} {(noAnswerCount == 0 ? "vez" : "veces")})" : outcome;
+        var line = $"{now:yyyy-MM-dd HH:mm} - {activityOutcome}{(attempt.Notes.Length > 0 ? ": " + attempt.Notes : "")}";
         record.CallActivity = $"{record.CallActivity}\n{line}".Trim();
         if (record.CallActivity.Length > 300) record.CallActivity = record.CallActivity[^300..];
         try { await db.SaveChangesAsync(cancellationToken); }
@@ -116,7 +119,8 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
     private async Task<IActionResult> SavedAsync(CustomerRecord record, LeadCallAttempt attempt, CancellationToken ct)
     {
         var count = await db.LeadCallAttempts.CountAsync(x => x.RecordId == record.Id && x.CompanyId == CompanyId, ct);
-        return Ok(new { id = record.Id, attemptId = attempt.Id, callCount = count, attempt.Outcome, attempt.NextCallAt,
+        var noAnswerCount = await db.LeadCallAttempts.CountAsync(x => x.RecordId == record.Id && x.CompanyId == CompanyId && x.Outcome == "No contestó", ct);
+        return Ok(new { noAnswerCount, id = record.Id, attemptId = attempt.Id, callCount = count, attempt.Outcome, attempt.NextCallAt,
             callLabel = $"Se llamo {count} {(count == 1 ? "vez" : "veces")}" });
     }
     private static string NormalizePhone(string phone) => (phone.TrimStart().StartsWith('+') ? "+" : "") + new string(phone.Where(char.IsDigit).ToArray());

@@ -109,3 +109,31 @@ resultado pendiente, se puede guardar el resultado seleccionado sin llamar al
 siguiente, descartar explicitamente el intento sin contarlo, o volver conservandolo.
 Si falla el guardado no se cambia la cola. Cambiar filtros pausa la tanda; para
 reanudar llamadas se pulsa Iniciar llamadas masivas. No se llama al cargar filtros.
+
+## Flujo simplificado y sesion (1.7)
+
+Resultados disponibles: Contesto, No contesto (N veces), Competencia y No
+interesado. La API agrega cada resultado a CallActivity; el contador de no
+contestadas cuenta solo esos intentos, con el mismo ID idempotente por llamada.
+Se retiran Ocupado, Numero incorrecto y Volver a llamar de los nuevos resultados.
+El historial anterior se conserva.
+
+Se quitan Pausar, Solo guardar, Cancelar intento y Cargar siguiente tanda de la
+pantalla. Guardar y llamar al siguiente sigue disponible. Al terminar una tanda
+carga automaticamente la siguiente usando los mismos filtros, sin llamar si no
+hay mas registros. Cambiar filtros permite guardar el resultado sin avanzar o
+descartar explicitamente el intento pendiente.
+
+Filtros, rango de fechas y preferencia de avance se guardan al modificarse.
+La sesion se conserva en SecureStorage, sin almacenar la contrasena. Al abrir se
+recupera si el token sigue vigente. Cerrar sesion elimina el token, no los filtros.
+No se inicia una llamada automaticamente al abrir o recuperar la app.
+
+El login movil envia rememberSession=true. Desplegar AuthService y OldSchoolApi
+para habilitar la duracion movil y los resultados nuevos. Jwt:MobileExpiryMinutes
+es opcional (por defecto 10080, siete dias; limitado entre 60 y 10080). Los otros
+clientes conservan Jwt:ExpiryMinutes. Un token ya emitido no amplia su vencimiento;
+es necesario iniciar sesion de nuevo despues de desplegar AuthService.
+
+Pruebas aisladas de resultados y duracion JWT:
+dotnet run --project tests/DialerChecks -p:UseAppHost=false
