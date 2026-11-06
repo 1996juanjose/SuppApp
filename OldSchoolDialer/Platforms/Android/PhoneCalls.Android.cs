@@ -18,6 +18,18 @@ public static class PhoneCalls
         var intent = new Intent(Intent.ActionCall, Android.Net.Uri.Parse("tel:" + phone));
         context.StartActivity(intent);
     }
+    public static Task OpenWhatsAppBusinessAsync(string number, Func<bool>? canContinue = null)
+    {
+        var link = WhatsAppLinks.Chat(number);
+        if (canContinue is not null && !canContinue()) throw new OperationCanceledException("La tanda fue detenida.");
+        var context = Platform.CurrentActivity ?? throw new InvalidOperationException("Abre la app para continuar.");
+        var intent = new Intent(Intent.ActionView, Android.Net.Uri.Parse(link));
+        intent.SetPackage("com.whatsapp.w4b");
+        try { context.StartActivity(intent); }
+        catch (ActivityNotFoundException)
+        { throw new InvalidOperationException("Instala y configura WhatsApp Business en este dispositivo, o selecciona Línea telefónica en los filtros."); }
+        return Task.CompletedTask;
+    }
     public sealed class DirectCallPermission : Permissions.BasePlatformPermission
     {
         public override (string androidPermission, bool isRuntime)[] RequiredPermissions => [(Android.Manifest.Permission.CallPhone, true)];

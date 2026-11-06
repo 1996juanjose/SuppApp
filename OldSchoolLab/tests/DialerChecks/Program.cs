@@ -9,6 +9,9 @@ using OldSchoolApi.Models;
 using OldSchoolApi.Controllers;
 using OldSchool.AuthService.Services;
 static void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
+Check(OldSchoolDialer.WhatsAppLinks.Chat("900000001") == "https://wa.me/51900000001", "WhatsApp link adds Peru code to local mobile");
+Check(OldSchoolDialer.WhatsAppLinks.Chat("+51 900 000 001") == "https://wa.me/51900000001", "WhatsApp link preserves international number");
+try { OldSchoolDialer.WhatsAppLinks.Chat("123"); throw new Exception("invalid number accepted"); } catch (InvalidOperationException) { Console.WriteLine("PASS invalid WhatsApp number rejected"); }
 var config = new ConfigurationManager(); config["App:TimeZoneId"] = "America/Lima";
 await using var db = new ApiDbContext(new DbContextOptionsBuilder<ApiDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" });

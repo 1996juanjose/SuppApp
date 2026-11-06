@@ -23,12 +23,15 @@ public partial class MainPage : ContentPage
         UsernameEntry.Text = Preferences.Default.Get("username", "");
         BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
         OutcomePicker.ItemsSource = outcomes;
+        ChannelPicker.ItemsSource = new[] { "WhatsApp Business (llamada manual)", "Línea telefónica" };
+        ChannelPicker.SelectedIndex = 0;
         FromPicker.Date = DateTime.Today.AddMonths(-1); ToPicker.Date = DateTime.Today;
         DatesCheck.IsChecked = true;
         AutomaticSwitch.IsToggled = true;
         session.AutoAdvance = true;
         RestoreFilters();
         BatchPicker.SelectedIndexChanged += (_, _) => SaveFilters();
+        ChannelPicker.SelectedIndexChanged += (_, _) => { SaveFilters(); Controls(); };
         DatesCheck.CheckedChanged += (_, _) => SaveFilters();
         FromPicker.DateSelected += (_, _) => SaveFilters();
         ToPicker.DateSelected += (_, _) => SaveFilters();
@@ -52,6 +55,7 @@ public partial class MainPage : ContentPage
     sealed class FilterSettings
     {
         public int Batch { get; set; } = 1;
+        public int Channel { get; set; }
         public bool Dates { get; set; } = true;
         public bool Automatic { get; set; } = true;
         public DateTime? From { get; set; }
@@ -59,7 +63,7 @@ public partial class MainPage : ContentPage
     }
     void SaveFilters() => Preferences.Default.Set("dialer.filters", JsonSerializer.Serialize(new FilterSettings
     {
-        Batch = BatchPicker.SelectedIndex, Dates = DatesCheck.IsChecked,
+        Batch = BatchPicker.SelectedIndex, Channel = ChannelPicker.SelectedIndex, Dates = DatesCheck.IsChecked,
         Automatic = AutomaticSwitch.IsToggled, From = FromPicker.Date, To = ToPicker.Date
     }));
     void RestoreFilters()
@@ -69,6 +73,7 @@ public partial class MainPage : ContentPage
             var value = JsonSerializer.Deserialize<FilterSettings>(Preferences.Default.Get("dialer.filters", "null"));
             if (value is null) return;
             BatchPicker.SelectedIndex = Math.Clamp(value.Batch, 0, 3);
+            ChannelPicker.SelectedIndex = Math.Clamp(value.Channel, 0, 1);
             DatesCheck.IsChecked = value.Dates; AutomaticSwitch.IsToggled = value.Automatic; session.AutoAdvance = value.Automatic;
             FromPicker.Date = value.From ?? DateTime.Today.AddMonths(-1); ToPicker.Date = value.To ?? DateTime.Today;
         }
@@ -124,8 +129,11 @@ public partial class MainPage : ContentPage
         catch (Exception ex) { session.Pause(); Message(ex.Message, true); }
         finally { busy = false; Controls(); }
     }
+    bool ViaWhatsApp => ChannelPicker.SelectedIndex == 0;
     void Controls()
     {
+        ChannelPicker.IsEnabled = !busy && !session.AwaitingResult;
+        ChannelHintLabel.Text = ViaWhatsApp ? "Se abrirá WhatsApp Business. Toca el teléfono para llamar por voz; vuelve aquí para guardar el resultado." : "La llamada se realizará con la línea telefónica del dispositivo.";
         BusyIndicator.IsVisible = BusyIndicator.IsRunning = busy;
         CallBusyIndicator.IsVisible = CallBusyIndicator.IsRunning = busy;
         SkipButton.IsEnabled = !busy && currentIndex < prospects.Count;
@@ -133,10 +141,10 @@ public partial class MainPage : ContentPage
         LoadButton.IsEnabled = !busy;
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = !busy && currentIndex < prospects.Count;
-        StartButton.Text = session.AwaitingResult ? "Continuar llamada actual" : "Iniciar llamadas masivas";
+        StartButton.Text = session.AwaitingResult ? "Continuar llamada actual" : ViaWhatsApp ? "Iniciar por WhatsApp Business" : "Iniciar llamadas masivas";
         SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
         // Pausing is always available, including while a save is in flight.
-        SaveResultButton.Text = "Guardar y llamar al siguiente";
+        SaveResultButton.Text = ViaWhatsApp ? "Guardar y abrir siguiente chat" : "Guardar y llamar al siguiente";
     }
     async Task EnsureAsync(HttpResponseMessage response)
     {
@@ -242,8 +250,10 @@ public partial class MainPage : ContentPage
         if (currentIndex >= prospects.Count || session.AwaitingResult) return;
         await ShowCallPageAsync();
         var campaignCall = session.Running;
-        await PhoneCalls.StartAsync(prospects[currentIndex].Cellphone, () => !campaignCall || session.Running);
-        session.CallStarted(); Message("Al terminar la llamada, vuelve aquí, elige el resultado y guárdalo.");
+        if (ViaWhatsApp) await PhoneCalls.OpenWhatsAppBusinessAsync(prospects[currentIndex].Cellphone, () => !campaignCall || session.Running);
+        else await PhoneCalls.StartAsync(prospects[currentIndex].Cellphone, () => !campaignCall || session.Running);
+        session.CallStarted();
+        Message(ViaWhatsApp ? "Chat abierto en WhatsApp Business. Toca el icono de teléfono para llamar por voz. Al terminar, vuelve y guarda el resultado. Si no llamaste, pulsa Omitir." : "Al terminar la llamada, vuelve aquí, elige el resultado y guárdalo.");
     }
     async void OnStartClicked(object? sender, EventArgs e) => await RunAsync(async () =>
     {

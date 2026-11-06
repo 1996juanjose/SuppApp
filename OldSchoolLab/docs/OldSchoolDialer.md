@@ -177,3 +177,21 @@ consulta los prospectos todavia sin llamar del rango guardado.
 Desplegar OldSchoolApi para el encabezado X-Total-Count, que devuelve el total de
 prospectos validos coincidentes antes de paginar. En una API anterior se muestra
 el total conocido de contactos cargados, ampliandolo al recibir otras tandas.
+
+## WhatsApp Business asistido (2.1)
+
+Canal de llamada permite elegir WhatsApp Business (predeterminado) o linea
+telefonica. La eleccion se conserva junto con los filtros. El chat se abre con
+el numero del prospecto actual de la base de datos, usando explicitamente el
+paquete Android com.whatsapp.w4b. No se usa un numero de prueba fijo ni se cambia
+al WhatsApp personal o a telefonia si Business no esta instalado.
+
+En Business el operador toca el icono de telefono para iniciar la voz, vuelve al
+marcador y declara el resultado. Guardar y abrir siguiente chat conserva el mismo
+historial de resultados. Abrir el chat no guarda por si solo un resultado ni un
+intento completado; si no se llego a llamar se usa Omitir. No se automatizan
+pulsaciones de WhatsApp. Se requiere WhatsApp Business instalado y con sesion.
+
+El simulador de pruebas no tiene WhatsApp Business instalado: se comprobo que
+el intento explicito no se resuelve. Se verificaron compilacion Android y
+normalizacion de numeros, sin realizar llamadas ni enviar mensajes reales.
