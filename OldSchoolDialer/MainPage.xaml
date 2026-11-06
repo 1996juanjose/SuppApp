@@ -1,11 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" x:Class="OldSchoolDialer.MainPage" Title="OldSchool · Llamadas" BackgroundColor="#F5F7FB">
  <ScrollView><VerticalStackLayout Padding="20,28" Spacing="16">
-  <Label Text="OLDSCHOOL" TextColor="#2563EB" FontSize="12" FontAttributes="Bold" CharacterSpacing="3"/>
-  <Label Text="Tu próxima conversación" TextColor="#172338" FontSize="27" FontAttributes="Bold"/>
-  <Label Text="Prospectos de tu empresa, una llamada a la vez." TextColor="#64748B" FontSize="13"/>
-  <Border Stroke="#E2E8F0" BackgroundColor="White" Padding="18" StrokeShape="RoundRectangle 14">
-   <VerticalStackLayout Spacing="12" x:Name="LoginPanel">
+  <Border x:Name="LoginPanel" Stroke="#E2E8F0" BackgroundColor="White" Padding="18" StrokeShape="RoundRectangle 14">
+   <VerticalStackLayout Spacing="12">
     <Label Text="Iniciar sesión" FontSize="18" FontAttributes="Bold"/>
     <Button x:Name="CompaniesButton" Text="Reintentar conexión" IsVisible="False" Clicked="OnCompaniesClicked"/>
     <Label Text="Empresa" FontSize="12" TextColor="#64748B"/>

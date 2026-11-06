@@ -137,3 +137,15 @@ es necesario iniciar sesion de nuevo despues de desplegar AuthService.
 
 Pruebas aisladas de resultados y duracion JWT:
 dotnet run --project tests/DialerChecks -p:UseAppHost=false
+
+
+## Preferencia visual anotada (06/11/2026)
+
+Referencia enviada por el usuario: ficha compacta sobrepuesta con numero y nombre
+arriba, resultado/feedback destacado y acciones inferiores claras. Se conserva
+como referencia de un futuro rediseno; no se implementan las opciones SMS, email
+ni reprogramacion de la imagen por esta anotacion.
+
+En 1.8 se retiran el encabezado promocional y la descripcion superior. El borde
+del formulario de acceso se oculta completo al iniciar sesion, evitando el
+recuadro vacio que ocupaba espacio encima de los filtros.
