@@ -10,9 +10,9 @@ public partial class MainPage : ContentPage
 {
     readonly HttpClient http = ServiceEndpoints.CreateClient();
     readonly DialingSession session = new();
+    readonly DialingProgress progress = new();
+    bool totalKnown;
     readonly List<Prospect> prospects = [];
-    readonly string[] filters = ["Sin llamar", "Ya llamados", "Volver a llamar (pendientes)", "Todos"];
-    readonly string[] filterValues = ["uncalled", "called", "callback", "all"];
     readonly string[] outcomes = ["Contestó", "No contestó", "Competencia", "No interesado"];
     string? token; Uri? apiUri; int currentIndex, cursor; bool busy;
     string? currentQuery;
@@ -21,7 +21,6 @@ public partial class MainPage : ContentPage
         InitializeComponent();
         QueuePanel.Children.Remove(CallWorkspace);
         UsernameEntry.Text = Preferences.Default.Get("username", "");
-        FilterPicker.ItemsSource = filters; FilterPicker.SelectedIndex = 0;
         BatchPicker.ItemsSource = new[] { "50 prospectos", "100 prospectos", "250 prospectos", "500 prospectos" }; BatchPicker.SelectedIndex = 1;
         OutcomePicker.ItemsSource = outcomes;
         FromPicker.Date = DateTime.Today.AddMonths(-1); ToPicker.Date = DateTime.Today;
@@ -29,10 +28,6 @@ public partial class MainPage : ContentPage
         AutomaticSwitch.IsToggled = true;
         session.AutoAdvance = true;
         RestoreFilters();
-        SearchEntry.TextChanged += (_, _) => SaveFilters();
-        MinCallsEntry.TextChanged += (_, _) => SaveFilters();
-        MaxCallsEntry.TextChanged += (_, _) => SaveFilters();
-        FilterPicker.SelectedIndexChanged += (_, _) => SaveFilters();
         BatchPicker.SelectedIndexChanged += (_, _) => SaveFilters();
         DatesCheck.CheckedChanged += (_, _) => SaveFilters();
         FromPicker.DateSelected += (_, _) => SaveFilters();
@@ -56,11 +51,7 @@ public partial class MainPage : ContentPage
     }
     sealed class FilterSettings
     {
-        public int Filter { get; set; }
         public int Batch { get; set; } = 1;
-        public string? Search { get; set; }
-        public string? Min { get; set; }
-        public string? Max { get; set; }
         public bool Dates { get; set; } = true;
         public bool Automatic { get; set; } = true;
         public DateTime? From { get; set; }
@@ -68,8 +59,7 @@ public partial class MainPage : ContentPage
     }
     void SaveFilters() => Preferences.Default.Set("dialer.filters", JsonSerializer.Serialize(new FilterSettings
     {
-        Filter = FilterPicker.SelectedIndex, Batch = BatchPicker.SelectedIndex, Search = SearchEntry.Text,
-        Min = MinCallsEntry.Text, Max = MaxCallsEntry.Text, Dates = DatesCheck.IsChecked,
+        Batch = BatchPicker.SelectedIndex, Dates = DatesCheck.IsChecked,
         Automatic = AutomaticSwitch.IsToggled, From = FromPicker.Date, To = ToPicker.Date
     }));
     void RestoreFilters()
@@ -78,8 +68,7 @@ public partial class MainPage : ContentPage
         {
             var value = JsonSerializer.Deserialize<FilterSettings>(Preferences.Default.Get("dialer.filters", "null"));
             if (value is null) return;
-            FilterPicker.SelectedIndex = Math.Clamp(value.Filter, 0, 3); BatchPicker.SelectedIndex = Math.Clamp(value.Batch, 0, 3);
-            SearchEntry.Text = value.Search; MinCallsEntry.Text = value.Min; MaxCallsEntry.Text = value.Max;
+            BatchPicker.SelectedIndex = Math.Clamp(value.Batch, 0, 3);
             DatesCheck.IsChecked = value.Dates; AutomaticSwitch.IsToggled = value.Automatic; session.AutoAdvance = value.Automatic;
             FromPicker.Date = value.From ?? DateTime.Today.AddMonths(-1); ToPicker.Date = value.To ?? DateTime.Today;
         }
@@ -90,7 +79,7 @@ public partial class MainPage : ContentPage
         token = login.Token; apiUri = ServiceEndpoints.Api;
         LoginPanel.IsVisible = false; QueuePanel.IsVisible = true;
         SessionLabel.Text = $"{login.CompanyName} · {login.Username}";
-        cursor = 0; session.Reset(); session.AutoAdvance = AutomaticSwitch.IsToggled;
+        cursor = 0; progress.Reset(); totalKnown = false; session.Reset(); session.AutoAdvance = AutomaticSwitch.IsToggled;
         currentQuery = BuildQuery();
     }
     async Task RestoreLoginAsync()
@@ -200,9 +189,7 @@ public partial class MainPage : ContentPage
     string BuildQuery()
     {
         var take = new[] { 50, 100, 250, 500 }[Math.Max(0, BatchPicker.SelectedIndex)];
-        var query = $"callFilter={filterValues[Math.Max(0, FilterPicker.SelectedIndex)]}&take={take}&search={Uri.EscapeDataString(SearchEntry.Text?.Trim() ?? "")}";
-        foreach (var (name, text) in new[] { ("minAttempts", MinCallsEntry.Text), ("maxAttempts", MaxCallsEntry.Text) })
-            if (!string.IsNullOrWhiteSpace(text)) { if (!int.TryParse(text, out var value) || value < 0) throw new InvalidOperationException("Los intentos deben ser enteros positivos."); query += $"&{name}={value}"; }
+        var query = $"callFilter=uncalled&take={take}";
         if (DatesCheck.IsChecked)
         {
             if (!FromPicker.Date.HasValue || !ToPicker.Date.HasValue || FromPicker.Date.Value.Date > ToPicker.Date.Value.Date)
@@ -218,6 +205,9 @@ public partial class MainPage : ContentPage
         using var request = Request(HttpMethod.Get, $"api/records/prospect-calls/queue?{currentQuery}&afterId={cursor}");
         using var response = await http.SendAsync(request); await EnsureAsync(response);
         var loaded = await response.Content.ReadFromJsonAsync<List<Prospect>>() ?? [];
+        if (cursor == 0 && response.Headers.TryGetValues("X-Total-Count", out var totals) && int.TryParse(totals.FirstOrDefault(), out var total))
+        { progress.SetTotal(total); totalKnown = true; }
+        if (!totalKnown) progress.AddLoaded(loaded.Count);
         if (response.Headers.TryGetValues("X-Next-Cursor", out var values) && int.TryParse(values.FirstOrDefault(), out var next)) cursor = next;
         prospects.Clear(); prospects.AddRange(loaded); currentIndex = 0; ShowCurrent(); Message(loaded.Count == 0 ? "Sin prospectos en esta tanda. Puedes cargar la siguiente o cambiar filtros." : "Tanda lista. Pulsa Iniciar llamadas masivas para comenzar.");
     }
@@ -245,7 +235,7 @@ public partial class MainPage : ContentPage
             }
             else { Controls(); return; }
         }
-        await RunAsync(async () => { currentQuery = query; cursor = 0; await LoadAsync(); });
+        await RunAsync(async () => { currentQuery = query; cursor = 0; progress.Reset(); totalKnown = false; await LoadAsync(); });
     }
     async Task CallAsync()
     {
@@ -264,6 +254,7 @@ public partial class MainPage : ContentPage
     {
         if (currentIndex >= prospects.Count) return;
         session.CancelAttempt(); // Explicit skip never invents a completed call or posts to the API.
+        progress.RecordSkipped();
         currentIndex++; OutcomePicker.SelectedIndex = -1; NotesEditor.Text = "";
         if (currentIndex >= prospects.Count) await LoadAsync();
         ShowCurrent();
@@ -302,6 +293,7 @@ public partial class MainPage : ContentPage
         var current = prospects[currentIndex];
         current.CallCount = saved.CallCount; current.NoAnswerCount = saved.NoAnswerCount; current.LastOutcome = outcome;
         var advance = session.ResultSaved(callNext);
+        progress.RecordSaved();
         if (!repeatCurrent) currentIndex++;
         OutcomePicker.SelectedIndex = -1; NotesEditor.Text = ""; ShowCurrent();
         if (repeatCurrent)
@@ -323,13 +315,14 @@ public partial class MainPage : ContentPage
     });
     void ShowCurrent()
     {
-        CallProgressLabel.Text = QueueSummaryLabel.Text = $"{prospects.Count} prospectos en esta tanda · {Math.Min(currentIndex, prospects.Count)} completados";
+        CallProgressLabel.Text = QueueSummaryLabel.Text = progress.Summary;
+        QueueProgressBar.Progress = CallProgressBar.Progress = progress.Fraction;
         CurrentProspectPanel.IsVisible = currentIndex < prospects.Count;
         if (!CurrentProspectPanel.IsVisible) return;
         var p = prospects[currentIndex];
         NoAnswerButton.Text = $"No contestó ({p.NoAnswerCount + 1} {(p.NoAnswerCount == 0 ? "vez" : "veces")})";
         ProspectNameLabel.Text = string.IsNullOrWhiteSpace(p.NameOrReference) ? "Prospecto" : p.NameOrReference; ProspectPhoneLabel.Text = p.Cellphone;
-        ProspectPositionLabel.Text = $"PROSPECTO {currentIndex + 1} DE {prospects.Count}";
+        ProspectPositionLabel.Text = $"PROSPECTO {progress.Saved + progress.Skipped + 1} DE {progress.Total}";
         CallCountLabel.Text = p.CallCount == 0 ? "Sin llamar" : $"Se llamó {p.CallCount} {(p.CallCount == 1 ? "vez" : "veces")}";
         PreviousOutcomeLabel.Text = p.LastOutcome is null ? "Aún no tiene intentos registrados." : $"Último resultado: {p.LastOutcome} · {p.LastCallAt:dd/MM HH:mm}";
         Controls();

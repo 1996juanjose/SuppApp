@@ -159,3 +159,21 @@ y llamar al siguiente y Omitir y seguir. Omitir avanza sin enviar un resultado
 ni incrementar intentos. La accion explicita Omitir abre el siguiente numero.
 Volver a filtros conserva el resultado pendiente; Continuar llamada actual
 permite regresar a la ficha sin volver a marcar ni perder las notas.
+
+## Progreso de llamadas (2.0)
+
+Se retiran Preparar mi tanda, el selector Sin llamar, busqueda e intentos minimo/
+maximo de la pantalla. Se conservan fechas y tamano de carga. La consulta movil
+trabaja con prospectos sin llamadas guardadas dentro del rango elegido; los
+filtros antiguos ocultos ya no se envian ni se restauran.
+
+Arriba, tanto en filtros como en la ficha de llamada, aparecen Total, Llamados,
+Faltan y Omitidos con una barra de progreso. Llamados aumenta solo tras guardar
+un resultado confirmado por la API. Omitir reduce pendientes sin sumar llamadas.
+El conteo no se reinicia al cargar automaticamente otra tanda ni al volver a los
+filtros. Aplicar un rango nuevo comienza un recorrido nuevo. Reiniciar la app
+consulta los prospectos todavia sin llamar del rango guardado.
+
+Desplegar OldSchoolApi para el encabezado X-Total-Count, que devuelve el total de
+prospectos validos coincidentes antes de paginar. En una API anterior se muestra
+el total conocido de contactos cargados, ampliandolo al recibir otras tandas.

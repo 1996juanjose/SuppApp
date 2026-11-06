@@ -15,12 +15,9 @@
   <ActivityIndicator x:Name="BusyIndicator" IsVisible="False" IsRunning="False" Color="#2563EB"/>
   <Label x:Name="MessageLabel" TextColor="#BE123C" FontSize="13"/>
   <VerticalStackLayout x:Name="QueuePanel" IsVisible="False" Spacing="16">
+   <Border Stroke="#BFDBFE" BackgroundColor="#EFF6FF" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="8"><Label Text="Progreso del recorrido" FontAttributes="Bold"/><Label x:Name="QueueSummaryLabel" FontSize="17" TextColor="#172338"/><ProgressBar x:Name="QueueProgressBar" ProgressColor="#059669"/></VerticalStackLayout></Border>
    <Grid ColumnDefinitions="*,Auto"><Label x:Name="SessionLabel" VerticalOptions="Center" FontAttributes="Bold"/><Button Grid.Column="1" Text="Salir" Clicked="OnLogoutClicked" BackgroundColor="#E2E8F0" TextColor="#475569"/></Grid>
    <Border Stroke="#E2E8F0" BackgroundColor="White" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="10">
-    <Label Text="Preparar mi tanda" FontSize="18" FontAttributes="Bold"/>
-    <Picker x:Name="FilterPicker" Title="Estado de llamadas"/>
-    <Entry x:Name="SearchEntry" Placeholder="Buscar celular o nombre"/>
-    <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><VerticalStackLayout><Label Text="Intentos mínimos" FontSize="11"/><Entry x:Name="MinCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout><VerticalStackLayout Grid.Column="1"><Label Text="Intentos máximos" FontSize="11"/><Entry x:Name="MaxCallsEntry" Keyboard="Numeric" Placeholder="Sin límite"/></VerticalStackLayout></Grid>
     <HorizontalStackLayout Spacing="8"><CheckBox x:Name="DatesCheck"/><Label Text="Filtrar por fecha de creación" VerticalOptions="Center"/></HorizontalStackLayout>
     <Grid ColumnDefinitions="*,*" ColumnSpacing="12"><DatePicker x:Name="FromPicker" Format="dd/MM/yyyy"/><DatePicker x:Name="ToPicker" Grid.Column="1" Format="dd/MM/yyyy"/></Grid>
     <Picker x:Name="BatchPicker" Title="Tamaño de la tanda"/>
@@ -30,11 +27,12 @@
     <Grid ColumnDefinitions="*,Auto"><VerticalStackLayout><Label x:Name="LockLabel" Text="🔓 Avance manual" FontAttributes="Bold"/><Label Text="Puedes guardar y llamar al siguiente con el botón azul." FontSize="11" TextColor="#64748B"/></VerticalStackLayout><Switch x:Name="AutomaticSwitch" Grid.Column="1" OnColor="#2563EB" Toggled="OnAutomaticToggled"/></Grid>
     <Button x:Name="StartButton" Text="Iniciar llamadas masivas" Clicked="OnStartClicked" BackgroundColor="#2563EB"/>
    </VerticalStackLayout></Border>
-   <Label x:Name="QueueSummaryLabel" TextColor="#64748B"/>
+
    <VerticalStackLayout x:Name="CallWorkspace" Spacing="12">
+   <Border Stroke="#BFDBFE" BackgroundColor="#EFF6FF" Padding="16" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="8"><Label Text="Progreso del recorrido" FontAttributes="Bold"/><Label x:Name="CallProgressLabel" FontSize="17" TextColor="#172338"/><ProgressBar x:Name="CallProgressBar" ProgressColor="#059669"/></VerticalStackLayout></Border>
    <ActivityIndicator x:Name="CallBusyIndicator" IsVisible="False" IsRunning="False" Color="#2563EB"/>
    <Label x:Name="CallMessageLabel" FontSize="13" TextColor="#047857"/>
-   <Label x:Name="CallProgressLabel" FontSize="12" TextColor="#64748B"/>
+
    <Border x:Name="CurrentProspectPanel" IsVisible="False" Stroke="#E2E8F0" BackgroundColor="White" Padding="20" StrokeShape="RoundRectangle 14"><VerticalStackLayout Spacing="14">
     <Label x:Name="ProspectPositionLabel" TextColor="#64748B" FontSize="11"/>
     <Label x:Name="ProspectNameLabel" FontSize="23" FontAttributes="Bold"/>

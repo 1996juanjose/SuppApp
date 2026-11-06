@@ -14,7 +14,16 @@ await using var db = new ApiDbContext(new DbContextOptionsBuilder<ApiDbContext>(
 db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" });
 db.CustomerRecords.Add(new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001" }); await db.SaveChangesAsync();
 var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim("company_id", "1"), new Claim("user_id", "test"), new Claim(ClaimTypes.Name, "TEST")], "test"));
+db.CustomerRecords.AddRange(new CustomerRecord { Id = 2, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000002" }, new CustomerRecord { Id = 3, CompanyId = 1, StatusCatalogId = 1, Cellphone = "123" });
+await db.SaveChangesAsync();
 var calls = new LeadCallsController(db, config) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = actor } } };
+var queue = (OkObjectResult)await calls.Queue(default, "uncalled", take: 1);
+Check(calls.Response.Headers["X-Total-Count"] == "2" && System.Text.Json.JsonSerializer.SerializeToElement(queue.Value).GetArrayLength() == 1, "queue total counts all valid filtered prospects beyond one page");
+var progress = new OldSchoolDialer.DialingProgress(); progress.SetTotal(251);
+for (var i = 0; i < 120; i++) progress.RecordSaved();
+for (var i = 0; i < 5; i++) progress.RecordSkipped();
+Check(progress.Saved == 120 && progress.Skipped == 5 && progress.Remaining == 126 && progress.Fraction > 0.49, "progress accumulates across batches and separates skips from calls");
+progress.Reset(); Check(progress.Total == 0 && progress.Remaining == 0 && progress.Fraction == 0, "new filter resets progress safely");
 var first = new LeadCallsController.ResultRequest { RequestId = Guid.NewGuid(), Outcome = "No contestó" };
 Check(await calls.Save(1, first, default) is OkObjectResult, "first no-answer saved");
 await calls.Save(1, first, default);
@@ -23,7 +32,7 @@ await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "No contestó"
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "Competencia" }, default);
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "No interesado" }, default);
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "Contestó" }, default);
-var activity = (await db.CustomerRecords.SingleAsync()).CallActivity;
+var activity = (await db.CustomerRecords.SingleAsync(x => x.Id == 1)).CallActivity;
 Check(activity.Contains("No contestó (1 vez)") && activity.Contains("No contestó (2 veces)") && activity.Contains("Competencia") && activity.Contains("No interesado") && activity.Contains("Contestó"), "all outcomes and no-answer counts reach call activity");
 foreach (var removed in new[] { "Ocupado", "Número incorrecto", "Volver a llamar" }) Check(await calls.Save(1, new() { Outcome = removed }, default) is BadRequestObjectResult, "removed outcome rejected: " + removed);
 config["Jwt:Key"] = new string('x', 64); config["Jwt:ExpiryMinutes"] = "120";

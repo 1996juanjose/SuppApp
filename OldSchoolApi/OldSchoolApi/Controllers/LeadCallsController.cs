@@ -46,7 +46,10 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         if (callFilter == "callback") leads = leads.Where(x => !x.IsCallConcrete && x.CallScheduledAt.HasValue && x.CallScheduledAt <= now);
         if (minAttempts.HasValue) leads = leads.Where(x => x.CallCount >= minAttempts.Value);
         if (maxAttempts.HasValue) leads = leads.Where(x => x.CallCount <= maxAttempts.Value);
-        var page = await leads.Where(x => x.Id > afterId).OrderBy(x => x.Id).Take(take).ToListAsync(cancellationToken);
+        var matchingPhones = await leads.Select(x => new { x.Id, x.Cellphone }).ToListAsync(cancellationToken);
+        var validIds = matchingPhones.Where(x => ValidPhone(x.Cellphone)).Select(x => x.Id).ToArray();
+        Response.Headers["X-Total-Count"] = validIds.Length.ToString();
+        var page = await leads.Where(x => validIds.Contains(x.Id)).Where(x => x.Id > afterId).OrderBy(x => x.Id).Take(take).ToListAsync(cancellationToken);
         Response.Headers["X-Next-Cursor"] = page.Count == 0 ? afterId.ToString() : page[^1].Id.ToString();
         return Ok(page.Where(x => ValidPhone(x.Cellphone)).Select(x => new { x.Id,
             cellphone = NormalizePhone(x.Cellphone), x.NameOrReference, x.CreatedAt, x.CallActivity,
