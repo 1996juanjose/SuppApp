@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using OldSchoolLab.Data;
+using OldSchoolApi.Data;
 
-namespace OldSchoolLab.Services;
+namespace OldSchoolApi.Services;
 
 public static class ListGoAccounts
 {
@@ -11,13 +11,13 @@ public static class ListGoAccounts
     public static void MapListGoAccounts(this WebApplication app)
     {
         var accounts = app.MapGroup("/api/listgo/accounts").RequireRateLimiting("listgo-accounts");
-        accounts.MapPost("/register", (Credentials input, ApplicationDbContext db, CancellationToken ct) =>
+        accounts.MapPost("/register", (Credentials input, ApiDbContext db, CancellationToken ct) =>
             Handle(input, db, true, ct));
-        accounts.MapPost("/login", (Credentials input, ApplicationDbContext db, CancellationToken ct) =>
+        accounts.MapPost("/login", (Credentials input, ApiDbContext db, CancellationToken ct) =>
             Handle(input, db, false, ct));
     }
 
-    private static async Task<IResult> Handle(Credentials input, ApplicationDbContext db, bool register, CancellationToken ct)
+    private static async Task<IResult> Handle(Credentials input, ApiDbContext db, bool register, CancellationToken ct)
     {
         var email = input.Email?.Trim().ToLowerInvariant();
         var password = input.Password;
@@ -46,7 +46,7 @@ public static class ListGoAccounts
     public static async Task EnsureAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<ApiDbContext>();
         await db.Database.ExecuteSqlRawAsync("""
             CREATE TABLE IF NOT EXISTS listgo_accounts (
                 id uuid PRIMARY KEY,

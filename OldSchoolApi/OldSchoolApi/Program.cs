@@ -6,6 +6,7 @@ using Microsoft.OpenApi.Models;
 using OldSchoolApi.Data;
 using System.Text;
 using OldSchoolApi.Services;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 await OldSchool.Storage.RustFsConfiguration.LoadAsync(builder.Configuration);
@@ -44,6 +45,17 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("listgo-accounts", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1)
+        }));
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -85,6 +97,8 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
     await LeadCallsSchema.EnsureAsync(scope.ServiceProvider.GetRequiredService<ApiDbContext>());
 
+await ListGoAccounts.EnsureAsync(app.Services);
+
 var configuredPaymentProofsPath = builder.Configuration["Storage:PaymentProofsPath"]?.Trim();
 var paymentProofsPath = !string.IsNullOrWhiteSpace(configuredPaymentProofsPath) && Path.IsPathRooted(configuredPaymentProofsPath)
     ? configuredPaymentProofsPath
@@ -113,7 +127,9 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseHttpsRedirection();
+app.UseRouting();
 app.UseCors("AngularDev");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -143,6 +159,7 @@ app.MapGet("/time", (IConfiguration config) =>
 });
 
 app.MapControllers();
+app.MapListGoAccounts();
 app.MapGet(OldSchool.Storage.RustFsPaymentProofs.Route + "/{fileName}",
     (string fileName, HttpContext context, OldSchool.Storage.RustFsPaymentProofs storage) => storage.OpenAsync(fileName, context))
     .RequireAuthorization();

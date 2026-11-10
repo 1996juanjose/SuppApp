@@ -8,7 +8,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
-using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 await OldSchool.Storage.RustFsConfiguration.LoadAsync(builder.Configuration);
@@ -54,17 +53,6 @@ builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
 builder.Services.AddScoped<ChatApiClient>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession();
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("listgo-accounts", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 10,
-            Window = TimeSpan.FromMinutes(1)
-        }));
-});
 
 builder.Services.Configure<ApiEndpointsOptions>(builder.Configuration.GetSection(ApiEndpointsOptions.SectionName));
 builder.Services.AddHttpClient(ChatApiClient.HttpClientName, (serviceProvider, client) =>
@@ -103,7 +91,6 @@ var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "storage", 
 Directory.CreateDirectory(companyLogosPath);
 
 await SeedData.InitializeAsync(app.Services);
-await ListGoAccounts.EnsureAsync(app.Services);
 
 app.Use(async (ctx, next) =>
 {
@@ -137,13 +124,11 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/company-logos"
 });
 app.UseRouting();
-app.UseRateLimiter();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
-app.MapListGoAccounts();
 app.MapGet(OldSchool.Storage.RustFsPaymentProofs.Route + "/{fileName}",
     (string fileName, HttpContext context, OldSchool.Storage.RustFsPaymentProofs storage) => storage.OpenAsync(fileName, context))
     .RequireAuthorization();
