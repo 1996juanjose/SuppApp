@@ -225,15 +225,10 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                             new
                             {
                                 type = "text",
-                                text = "Analiza esta imagen de voucher de pago peruano (Yape o Plin). " +
-                                       "Debes detectar cualquier monto visible, peque�o o grande, por ejemplo S/ 3.00, S/ 30.00, S/ 69.00 o S/ 129.00. " +
-                                       "Extrae tambi�n la fecha y hora exactas del pago. " +
-                                       "Responde SOLO con un JSON exacto, sin markdown, sin texto extra: " +
-                                       "{\"monto\": 3.00, \"tipo\": \"Yape\", \"nro_operacion\": \"10113704\", \"fecha_hora\": \"2026-05-16 12:24:00\"}. " +
-                                       "'monto' debe ser un n�mero en soles con 2 decimales si aplica, 'tipo' debe ser 'Yape', 'Plin' o 'Desconocido', " +
-                                       "'nro_operacion' debe ser solo d�gitos, sin espacios ni s�mbolos. " +
-                                       "'fecha_hora' debe ser la fecha y hora del voucher en formato yyyy-MM-dd HH:mm:ss. " +
-                                       "Si no puedes leer el voucher con seguridad, devuelve {\"monto\": 0, \"tipo\": \"Desconocido\", \"nro_operacion\": \"\", \"fecha_hora\": \"\"}."
+                                text = PaymentReceiptValidation.Instructions +
+                                       " Responde solo JSON, sin markdown. Incluye monto (numero en soles), " +
+                                       "tipo (Yape|Plin|BCP|Transferencia|Banco), nro_operacion (igual a operationNumber) " +
+                                       "y fecha_hora (yyyy-MM-dd HH:mm:ss)."
                             },
                             new
                             {
@@ -243,7 +238,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                         }
                     }
                 },
-                max_tokens = 150
+                max_tokens = 500
             };
 
             var json = JsonSerializer.Serialize(body);
@@ -260,7 +255,7 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 throw new InvalidOperationException($"OpenAI respondi� con error {(int)response.StatusCode}.");
             }
 
-            var doc = JsonDocument.Parse(responseJson);
+            using var doc = JsonDocument.Parse(responseJson);
             var messageContent = doc.RootElement
                 .GetProperty("choices")[0]
                 .GetProperty("message")
@@ -268,10 +263,13 @@ public class PaymentsController(ApiDbContext db, IConfiguration config, IHttpCli
                 .GetString() ?? string.Empty;
 
             var resultJson = ExtractJsonObject(messageContent);
-            var result = JsonDocument.Parse(resultJson);
+            using var result = JsonDocument.Parse(resultJson);
             var monto = result.RootElement.GetProperty("monto").GetDecimal();
             var tipo = result.RootElement.GetProperty("tipo").GetString() ?? "Desconocido";
-            var nroOp = result.RootElement.GetProperty("nro_operacion").GetString() ?? string.Empty;
+            var nroOp = PaymentReceiptValidation.Text(result.RootElement, "operationNumber");
+            var receiptDate = PaymentReceiptValidation.Text(result.RootElement, "fecha_hora");
+            if (!PaymentReceiptValidation.IsConfirmed(result.RootElement, monto, tipo, receiptDate))
+                return (0m, "Desconocido", string.Empty, null);
             DateTime? paymentDateTime = null;
 
             if (result.RootElement.TryGetProperty("fecha_hora", out var fechaHoraElement))

@@ -611,6 +611,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
     {
         [JsonPropertyName("amount")] public decimal Amount { get; set; }
         [JsonPropertyName("date")] public string Date { get; set; } = string.Empty;
+        public string OperationNumber { get; set; } = string.Empty;
         [JsonPropertyName("paymentType")] public string PaymentType { get; set; } = string.Empty;
         [JsonPropertyName("valid")] public bool Valid { get; set; }
     }
@@ -688,6 +689,10 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (paymentData is null || !paymentData.Valid || paymentData.Amount <= 0 || !IsAcceptedPaymentType(paymentData.PaymentType))
             return BadRequest(new { error = "No se pudo detectar un comprobante de pago v�lido en la imagen." });
 
+        if (await db.CustomerRecordPayments.AsNoTracking()
+            .AnyAsync(x => x.OperationNumber == paymentData.OperationNumber && !x.IsReversed))
+            return Conflict(new { error = "El comprobante con ese numero de operacion ya fue registrado." });
+
         var statusBaseQuery = db.Statuses
             .AsNoTracking()
             .Where(x => x.IsActive && x.CompanyId == record.CompanyId);
@@ -725,6 +730,7 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         db.CustomerRecordPayments.Add(new CustomerRecordPayment
         {
             CustomerRecordId = record.Id,
+            OperationNumber = paymentData.OperationNumber,
             Amount = paymentData.Amount,
             PaymentDate = paymentDate,
             CreatedAt = AppClock.Now(config),
@@ -950,14 +956,16 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
         if (string.IsNullOrWhiteSpace(openAiKey))
             throw new InvalidOperationException("No hay ApiKey de OpenAI configurada.");
 
-        var imageContent = imageUrl is not null
+        var imageContent = string.IsNullOrWhiteSpace(imageBase64) && imageUrl is not null
             ? (object)new { type = "image_url", image_url = new { url = imageUrl } }
             : (object)new { type = "image_url", image_url = new { url = $"data:image/jpeg;base64,{imageBase64}" } };
 
         var body = new
         {
             model = "gpt-4o",
-            max_tokens = 200,
+            max_tokens = 500,
+            temperature = 0,
+            response_format = new { type = "json_object" },
             messages = new[]
             {
                 new
@@ -968,7 +976,9 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                         new
                         {
                             type = "text",
-                            text = "Analiza esta imagen y valida SOLO si es un comprobante real de pago o transferencia de Yape, Plin, BCP o de una entidad bancaria. Rechaza boletas, facturas, anuncios, productos, tickets, QR genéricos, tickets de bus, vouchers de envío, publicaciones, promociones, publicidad con precios o cualquier imagen que no sea una transacción financiera. Si la imagen corresponde a una empresa de transporte, boleta de venta, ticket, afiche o anuncio de producto, devuelve inválido aunque aparezcan montos, QR o la palabra 'pago'. Responde SOLO con JSON: {\"valid\": true/false, \"amount\": número, \"date\": \"yyyy-MM-dd HH:mm:ss\", \"paymentType\": \"Yape|Plin|BCP|Transferencia|Banco\"}. Si no es claramente un comprobante admitido, devuelve {\"valid\": false, \"amount\": 0, \"date\": \"\", \"paymentType\": \"\"}. No inventes montos ni tipos de pago."
+                            text = PaymentReceiptValidation.Instructions +
+                                   " Responde solo JSON, sin markdown. Incluye amount (numero en soles), " +
+                                   "date (yyyy-MM-dd HH:mm:ss) y paymentType (Yape|Plin|BCP|Transferencia|Banco)."
                         },
                         imageContent
                     }
@@ -1010,7 +1020,20 @@ public class RecordsController(ApiDbContext db, IConfiguration config, IHttpClie
                 : content;
         }
 
-        return JsonSerializer.Deserialize<PaymentImageResult>(content);
+        try
+        {
+            using var receipt = JsonDocument.Parse(content);
+            var result = JsonSerializer.Deserialize<PaymentImageResult>(content);
+            if (result is null || !PaymentReceiptValidation.IsConfirmed(receipt.RootElement,
+                    result.Amount, result.PaymentType, result.Date))
+                return null;
+            result.OperationNumber = PaymentReceiptValidation.Text(receipt.RootElement, "operationNumber");
+            return result;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private async Task<ShipmentImageResult?> ExtractShipmentDataFromImageAsync(string? imageBase64, string? imageExtension)
