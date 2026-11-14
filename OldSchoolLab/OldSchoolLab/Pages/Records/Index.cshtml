@@ -1,7 +1,9 @@
 @page
 @model OldSchoolLab.Pages.Records.IndexModel
+@using System.Globalization
 @{
     ViewData["Title"] = "Registros";
+    var dateCulture = CultureInfo.GetCultureInfo("es-PE");
     int totalCols = 20 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
 }
 
@@ -388,7 +390,7 @@
                         </td>
                     }
                     <td><span class="badge text-bg-@item.StatusCatalog.BadgeClass">@item.StatusCatalog.Name</span></td>
-                    <td>@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@dateCulture.TextInfo.ToTitleCase(item.CreatedAt.ToString("dd MMM HH:mm", dateCulture).Replace(".", string.Empty))</td>
                     <td class="record-phone">
                         <div>@item.Cellphone</div>
                         <div class="small wa-row-state @(Model.WhatsAppLastSent.ContainsKey(waPhone) ? "text-success" : "text-muted")" data-wa-phone="@waPhone" data-sent="@(Model.WhatsAppLastSent.ContainsKey(waPhone) ? "yes" : "no")">
