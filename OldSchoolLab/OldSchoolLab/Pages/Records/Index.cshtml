@@ -200,9 +200,14 @@
     <div class="card-footer records-filter-actions d-flex flex-wrap gap-2">
         <a asp-page="/Records/Index" class="btn btn-outline-secondary">Limpiar</a>
         <button type="submit" class="btn btn-primary">Filtrar</button>
-        <button type="button" id="btnExportFiltered" class="btn btn-outline-success">Exportar filtrados (.csv)</button>
-        <button type="button" id="btnExportProspects" class="btn btn-outline-secondary">Exportar prospectos (.csv)</button>
-        <button type="button" id="btnExportForPhone" class="btn btn-outline-success">Exportar para celular (.csv)</button>
+        <button type="button" id="btnExportFiltered" class="btn btn-outline-success" title="Exportar filtrados (.csv)" aria-label="Exportar filtrados (.csv)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="M14 2h5l3 3v16H9V2h5Z" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M18 2v4h4M15 10h4M15 14h4M15 18h4" stroke="currentColor" stroke-width="1.5"/>
+                <rect x="1" y="6" width="13" height="14" rx="1.5" fill="currentColor"/>
+                <path d="m5 10 5 6m0-6-5 6" stroke="white" stroke-width="1.8"/>
+            </svg>
+        </button>
     </div>
 </form>
 
@@ -713,28 +718,7 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
     syncStatusHiddenInputs();
 </script>
 
-@if (Model.CanViewAudit)
-{
-    <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="auditModalLabel">Historial de cambios</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="auditModalBody">
-                    <div class="text-center py-3">
-                        <div class="spinner-border text-primary" role="status"></div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
+<script>
         (function () {
             function buildExportUrl(handler) {
                 var form = document.querySelector('form[method="get"]');
@@ -759,20 +743,32 @@ document.querySelectorAll('.btn-payments').forEach(btn => {
                 });
             }
 
-            var btnProspects = document.getElementById('btnExportProspects');
-            if (btnProspects) {
-                btnProspects.addEventListener('click', function () {
-                    window.location.href = buildExportUrl('ExportProspects');
-                });
-            }
-
-            var btnForPhone = document.getElementById('btnExportForPhone');
-            if (btnForPhone) {
-                btnForPhone.addEventListener('click', function () {
-                    window.location.href = buildExportUrl('ExportForPhone');
-                });
-            }
         })();
+</script>
+
+@if (Model.CanViewAudit)
+{
+    <div class="modal fade" id="auditModal" tabindex="-1" aria-labelledby="auditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="auditModalLabel">Historial de cambios</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="auditModalBody">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
 
         document.querySelectorAll('.btn-audit').forEach(btn => {
             btn.addEventListener('click', async () => {

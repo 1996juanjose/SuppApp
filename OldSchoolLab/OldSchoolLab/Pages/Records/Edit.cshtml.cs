@@ -29,6 +29,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
     public IFormFile? PaymentProofFile { get; set; }
 
     public List<SelectListItem> StatusOptions { get; private set; } = new();
+    public Dictionary<int, string> StatusBadgeLookup { get; private set; } = new();
     public List<SelectListItem> ProductOptions { get; private set; } = new();
     public Dictionary<int, Dictionary<int, decimal>> ProductPriceLookup { get; private set; } = new();
     public Dictionary<int, Dictionary<int, decimal>> ProductCommissionLookup { get; private set; } = new();
@@ -399,6 +400,7 @@ public class EditModel(ApplicationDbContext db, IAuditService audit, IPaymentPro
             .OrderBy(x => x.Name)
             .ToListAsync();
 
+        StatusBadgeLookup = statuses.ToDictionary(x => x.Id, x => x.BadgeClass);
         StatusOptions = statuses
             .Select(x => new SelectListItem(x.Name, x.Id.ToString()))
             .ToList();

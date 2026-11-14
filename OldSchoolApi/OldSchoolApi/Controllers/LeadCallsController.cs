@@ -14,7 +14,7 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
 {
     private int? CompanyId => int.TryParse(User.FindFirstValue("company_id"), out var id) ? id : null;
     private string ActorId => User.FindFirstValue("user_id") ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "";
-    public static readonly string[] Outcomes = ["Contestó", "No contestó", "Competencia", "No interesado"];
+    public static readonly string[] Outcomes = ["Contestó", "No contestó", "Competencia", "No interesado", "Interesado"];
 
     [HttpGet("prospect-calls/queue")]
     public async Task<IActionResult> Queue(CancellationToken cancellationToken, [FromQuery] string callFilter = "all",
@@ -85,9 +85,28 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         if (!await db.Statuses.AnyAsync(x => x.Id == record.StatusCatalogId && x.Name == "Prospecto", cancellationToken))
             return Conflict(new { error = "El registro ya no es prospecto. Recarga la cola." });
         var now = AppClock.Now(config);
-        var next = outcome == "Volver a llamar" ? request.NextCallAt ?? now.AddDays(1) : (DateTime?)null;
+        var next = outcome == "Interesado" ? request.NextCallAt : null;
+        if (outcome == "Interesado" && !next.HasValue)
+            return BadRequest(new { error = "Selecciona la fecha y hora para llamar al interesado." });
         if (next.HasValue && (next.Value.Kind != DateTimeKind.Unspecified || next <= now || next > now.AddYears(1)))
             return BadRequest(new { error = "La proxima llamada debe ser futura, en hora local de Peru y sin zona horaria." });
+
+        StatusCatalog? targetStatus = null;
+        var statuses = db.Statuses.AsNoTracking().Where(x => x.CompanyId == record.CompanyId && x.IsActive);
+        if (outcome == "Competencia")
+        {
+            targetStatus = await statuses.Where(x => x.Name == "Rechazado" || x.Name == "Rechazo")
+                .OrderBy(x => x.Name == "Rechazado" ? 0 : 1).ThenBy(x => x.Id).FirstOrDefaultAsync(cancellationToken);
+            if (targetStatus is null)
+                return Conflict(new { error = "La empresa no tiene un estado de rechazo activo." });
+        }
+        if (outcome == "Interesado")
+        {
+            targetStatus = await statuses.FirstOrDefaultAsync(x => x.Name == "Interesado", cancellationToken);
+            if (targetStatus is null)
+                return Conflict(new { error = "La empresa no tiene el estado Interesado activo." });
+        }
+        if (targetStatus is not null) record.StatusCatalogId = targetStatus.Id;
         var attempt = new LeadCallAttempt { Id = requestId, CompanyId = CompanyId.Value, RecordId = id,
             CreatedAt = now, Outcome = outcome, Notes = request.Notes?.Trim() ?? "", NextCallAt = next,
             CalledByUserId = ActorId, CalledByUserName = User.Identity?.Name ?? "" };
@@ -96,6 +115,7 @@ public class LeadCallsController(ApiDbContext db, IConfiguration config) : Contr
         record.IsCallConcrete = !next.HasValue;
         var noAnswerCount = await db.LeadCallAttempts.CountAsync(x => x.RecordId == id && x.CompanyId == CompanyId && x.Outcome == "No contestó", cancellationToken);
         var activityOutcome = outcome == "No contestó" ? $"No contestó ({noAnswerCount + 1} {(noAnswerCount == 0 ? "vez" : "veces")})" : outcome;
+        if (outcome == "Interesado") activityOutcome = $"Agendado llamar a las {next:dd/MM/yyyy HH:mm}";
         var line = $"{activityOutcome}{(attempt.Notes.Length > 0 ? ": " + attempt.Notes : "")}";
         var priorActivity = System.Text.RegularExpressions.Regex.Replace(record.CallActivity ?? "", @"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2} - ", "");
         record.CallActivity = $"{priorActivity}\n{line}".Trim();

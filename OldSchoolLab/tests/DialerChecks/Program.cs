@@ -14,7 +14,12 @@ Check(OldSchoolDialer.WhatsAppLinks.Chat("+51 900 000 001") == "https://wa.me/51
 try { OldSchoolDialer.WhatsAppLinks.Chat("123"); throw new Exception("invalid number accepted"); } catch (InvalidOperationException) { Console.WriteLine("PASS invalid WhatsApp number rejected"); }
 var config = new ConfigurationManager(); config["App:TimeZoneId"] = "America/Lima";
 await using var db = new ApiDbContext(new DbContextOptionsBuilder<ApiDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" });
+db.Statuses.AddRange(
+    new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" },
+    new StatusCatalog { Id = 2, CompanyId = 1, Name = "Rechazo" },
+    new StatusCatalog { Id = 3, CompanyId = 1, Name = "Interesado" },
+    new StatusCatalog { Id = 4, CompanyId = 2, Name = "Rechazado" },
+    new StatusCatalog { Id = 5, CompanyId = 2, Name = "Interesado" });
 db.CustomerRecords.Add(new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001", CallActivity = "2026-11-06 11:56 - Actividad anterior" }); await db.SaveChangesAsync();
 var actor = new ClaimsPrincipal(new ClaimsIdentity([new Claim("company_id", "1"), new Claim("user_id", "test"), new Claim(ClaimTypes.Name, "TEST")], "test"));
 db.CustomerRecords.AddRange(new CustomerRecord { Id = 2, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000002" }, new CustomerRecord { Id = 3, CompanyId = 1, StatusCatalogId = 1, Cellphone = "123" });
@@ -32,14 +37,53 @@ Check(await calls.Save(1, first, default) is OkObjectResult, "first no-answer sa
 await calls.Save(1, first, default);
 Check(await db.LeadCallAttempts.CountAsync() == 1, "retries do not double-count");
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "No contestó" }, default);
-await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "Competencia" }, default);
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "No interesado" }, default);
 await calls.Save(1, new() { RequestId = Guid.NewGuid(), Outcome = "Contestó" }, default);
+var competition = new LeadCallsController.ResultRequest { RequestId = Guid.NewGuid(), Outcome = "Competencia" };
+Check(await calls.Save(1, competition, default) is OkObjectResult, "competition saves successfully");
+var rejected = await db.CustomerRecords.SingleAsync(x => x.Id == 1);
+Check(rejected.StatusCatalogId == 2, "competition selects the company's existing Rechazo state");
+var savedCount = await db.LeadCallAttempts.CountAsync();
+Check(await calls.Save(1, competition, default) is OkObjectResult && await db.LeadCallAttempts.CountAsync() == savedCount,
+    "retry after competition changed status remains idempotent");
 var activity = (await db.CustomerRecords.SingleAsync(x => x.Id == 1)).CallActivity;
 Check(activity.Contains("No contestó (1 vez)") && activity.Contains("No contestó (2 veces)") && activity.Contains("Competencia") && activity.Contains("No interesado") && activity.Contains("Contestó"), "all outcomes and no-answer counts reach call activity");
 Check(!System.Text.RegularExpressions.Regex.IsMatch(activity, @"\d{4}-\d{2}-\d{2} \d{2}:\d{2}") && activity.Contains("Actividad anterior"), "call activity removes generated date prefixes and preserves prior text");
 Check((await db.LeadCallAttempts.FirstAsync()).CreatedAt != default, "call history still keeps its timestamp");
 foreach (var removed in new[] { "Ocupado", "Número incorrecto", "Volver a llamar" }) Check(await calls.Save(1, new() { Outcome = removed }, default) is BadRequestObjectResult, "removed outcome rejected: " + removed);
+
+db.CustomerRecords.Add(new CustomerRecord { Id = 5, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000005" });
+await db.SaveChangesAsync();
+var now = OldSchoolApi.Services.AppClock.Now(config);
+foreach (var date in new DateTime?[] { null, now.AddMinutes(-1), DateTime.UtcNow.AddDays(2), now.AddYears(2) })
+{
+    var invalidSchedule = new LeadCallsController.ResultRequest { RequestId = Guid.NewGuid(), Outcome = "Interesado", NextCallAt = date };
+    Check(await calls.Save(5, invalidSchedule, default) is BadRequestObjectResult, "interested rejects missing, past, UTC or distant schedule");
+    Check(await db.LeadCallAttempts.CountAsync() == savedCount && (await db.CustomerRecords.FindAsync(5))!.StatusCatalogId == 1,
+        "invalid schedule leaves status and history unchanged");
+}
+var interestedStatus = (await db.Statuses.FindAsync(3))!;
+interestedStatus.IsActive = false;
+await db.SaveChangesAsync();
+var followUp = new LeadCallsController.ResultRequest { RequestId = Guid.NewGuid(), Outcome = "Interesado", NextCallAt = now.AddDays(1), Notes = "Consultar disponibilidad" };
+Check(await calls.Save(5, followUp, default) is ConflictObjectResult && await db.LeadCallAttempts.CountAsync() == savedCount,
+    "inactive or other-company interested state cannot be used");
+interestedStatus.IsActive = true;
+await db.SaveChangesAsync();
+Check(await calls.Save(5, followUp, default) is OkObjectResult, "interested saves successfully with local future schedule");
+var interested = (await db.CustomerRecords.FindAsync(5))!;
+Check(interested.StatusCatalogId == 3 && interested.CallScheduledAt == followUp.NextCallAt && !interested.IsCallConcrete,
+    "interested changes web status, call date/time and pending-call flag together");
+Check(interested.CallActivity.Contains($"Agendado llamar a las {followUp.NextCallAt:dd/MM/yyyy HH:mm}")
+    && interested.CallActivity.Contains("Consultar disponibilidad"), "activity shows scheduled date/time and notes");
+Check((await db.LeadCallAttempts.SingleAsync(x => x.Id == followUp.RequestId)).NextCallAt == followUp.NextCallAt,
+    "scheduled call is persisted in call history");
+Check(await calls.Save(5, followUp, default) is OkObjectResult && await db.LeadCallAttempts.CountAsync() == savedCount + 1,
+    "interested retry after state change does not duplicate history");
+var updatedQueue = (OkObjectResult)await calls.Queue(default, "all");
+Check(!System.Text.Json.JsonSerializer.SerializeToElement(updatedQueue.Value).EnumerateArray()
+    .Any(x => x.GetProperty("Id").GetInt32() is 1 or 5), "rejected and interested contacts leave the prospect calling queue");
+
 config["Jwt:Key"] = new string('x', 64); config["Jwt:ExpiryMinutes"] = "120";
 var jwt = new JwtTokenService(config); var reader = new JwtSecurityTokenHandler();
 var normal = reader.ReadJwtToken(jwt.CreateToken("TEST", [], 1, "test"));

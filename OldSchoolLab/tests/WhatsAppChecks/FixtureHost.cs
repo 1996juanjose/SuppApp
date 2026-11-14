@@ -38,7 +38,10 @@ internal static class FixtureHost
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             db.Companies.Add(new Company { Id = 1, Name = "Empresa de prueba" });
-            db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto", BadgeClass = "primary" });
+            db.Statuses.AddRange(
+                new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto", BadgeClass = "primary" },
+                new StatusCatalog { Id = 2, CompanyId = 1, Name = "Rechazo", BadgeClass = "danger" },
+                new StatusCatalog { Id = 3, CompanyId = 1, Name = "Interesado", BadgeClass = "warning" });
             db.CustomerRecords.AddRange(
                 new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001", NameOrReference = "Cliente de prueba A", CreatedAt = DateTime.Today },
                 new CustomerRecord { Id = 2, CompanyId = 1, StatusCatalogId = 1, Cellphone = "+51 900 000 001", NameOrReference = "Mismo número anterior", CreatedAt = DateTime.Today },

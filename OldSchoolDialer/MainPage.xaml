@@ -48,11 +48,12 @@
      <Button x:Name="NoAnswerButton" Text="No contestó (1 vez)" CommandParameter="No contestó" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
      <Button Text="Competencia" CommandParameter="Competencia" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
      <Button Text="No interesado" CommandParameter="No interesado" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
+     <Button Text="Interesado" CommandParameter="Interesado" Clicked="OnOutcomeSelected" BackgroundColor="#E2E8F0" TextColor="#334155" Margin="0,0,6,6"/>
     </FlexLayout>
     <Label x:Name="SelectedOutcomeLabel" Text="Elige una opción para habilitar el guardado." TextColor="#64748B" FontSize="12"/>
     <Picker x:Name="OutcomePicker" IsVisible="False" Title="Resultado" SelectedIndexChanged="OnOutcomeChanged"/>
 
-    <VerticalStackLayout x:Name="CallbackPanel" IsVisible="False"><Label Text="Volver a llamar (hora de Perú)" FontSize="12"/><DatePicker x:Name="CallbackDate"/><TimePicker x:Name="CallbackTime" Format="HH:mm"/></VerticalStackLayout>
+    <VerticalStackLayout x:Name="CallbackPanel" IsVisible="False"><Label Text="Fecha y hora de la próxima llamada (hora de Perú)" FontSize="12"/><DatePicker x:Name="CallbackDate" Format="dd/MM/yyyy"/><TimePicker x:Name="CallbackTime" Format="HH:mm"/></VerticalStackLayout>
     <Editor x:Name="NotesEditor" Placeholder="Notas opcionales" AutoSize="TextChanges" MaxLength="250"/>
     <Button x:Name="SaveResultButton" Text="Guardar y llamar al siguiente" Clicked="OnSaveResultClicked" BackgroundColor="#2563EB"/>
     <Button x:Name="SkipButton" Text="Omitir y seguir" Clicked="OnSkipClicked" BackgroundColor="#E2E8F0" TextColor="#334155"/>

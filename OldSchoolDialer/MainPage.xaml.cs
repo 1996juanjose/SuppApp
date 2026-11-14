@@ -13,7 +13,7 @@ public partial class MainPage : ContentPage
     readonly DialingProgress progress = new();
     bool totalKnown;
     readonly List<Prospect> prospects = [];
-    readonly string[] outcomes = ["Contestó", "No contestó", "Competencia", "No interesado"];
+    readonly string[] outcomes = ["Contestó", "No contestó", "Competencia", "No interesado", "Interesado"];
     string? token; Uri? apiUri; int currentIndex, cursor; bool busy;
     string? currentQuery;
     public MainPage()
@@ -36,7 +36,10 @@ public partial class MainPage : ContentPage
         FromPicker.DateSelected += (_, _) => SaveFilters();
         ToPicker.DateSelected += (_, _) => SaveFilters();
         AutomaticSwitch.Toggled += (_, _) => SaveFilters();
-        CallbackDate.Date = DateTime.Today.AddDays(1); CallbackTime.Time = new TimeSpan(10, 0, 0);
+        CallbackDate.MinimumDate = DateTime.Today;
+        CallbackDate.Date = null; CallbackTime.Time = null;
+        CallbackDate.DateSelected += (_, _) => Controls();
+        CallbackTime.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(TimePicker.Time)) Controls(); };
     }
     const string SessionKey = "oldschool.mobile.session";
     bool companiesLoaded, restoreAttempted;
@@ -142,7 +145,9 @@ public partial class MainPage : ContentPage
         LoginButton.IsEnabled = !busy && companiesLoaded && !session.AwaitingResult;
         StartButton.IsEnabled = !busy && currentIndex < prospects.Count;
         StartButton.Text = session.AwaitingResult ? "Continuar llamada actual" : ViaWhatsApp ? "Iniciar por WhatsApp Business" : "Iniciar llamadas masivas";
-        SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string;
+        SaveResultButton.IsEnabled = !busy && session.AwaitingResult && OutcomePicker.SelectedItem is string
+            && (OutcomePicker.SelectedItem as string != "Interesado" || (CallbackDate.Date.HasValue && CallbackTime.Time.HasValue));
+        CallbackDate.IsEnabled = CallbackTime.IsEnabled = !busy;
         // Pausing is always available, including while a save is in flight.
         SaveResultButton.Text = ViaWhatsApp ? "Guardar y abrir siguiente chat" : "Guardar y llamar al siguiente";
     }
@@ -280,7 +285,8 @@ public partial class MainPage : ContentPage
     void OnOutcomeChanged(object? sender, EventArgs e)
     {
         var selected = OutcomePicker.SelectedItem as string;
-        CallbackPanel.IsVisible = selected == "Volver a llamar";
+        CallbackPanel.IsVisible = selected == "Interesado";
+        CallbackDate.Date = null; CallbackTime.Time = null;
         SelectedOutcomeLabel.Text = selected is null ? "Elige una opción para habilitar el guardado." : $"Resultado: {selected}";
         foreach (var button in OutcomeChoices.Children.OfType<Button>())
         {
@@ -294,7 +300,16 @@ public partial class MainPage : ContentPage
     async Task SaveResultAsync(bool callNext, bool repeatCurrent = false) => await RunAsync(async () =>
     {
         if (!session.AwaitingResult || currentIndex >= prospects.Count || OutcomePicker.SelectedItem is not string outcome) throw new InvalidOperationException("Elige el resultado de la llamada pendiente.");
-        DateTime? nextCallAt = outcome == "Volver a llamar" ? DateTime.SpecifyKind(CallbackDate.Date.GetValueOrDefault().Date + CallbackTime.Time.GetValueOrDefault(), DateTimeKind.Unspecified) : null;
+        DateTime? nextCallAt = null;
+        if (outcome == "Interesado")
+        {
+            if (!CallbackDate.Date.HasValue || !CallbackTime.Time.HasValue)
+                throw new InvalidOperationException("Selecciona la fecha y hora de la proxima llamada.");
+            nextCallAt = DateTime.SpecifyKind(CallbackDate.Date.Value.Date + CallbackTime.Time.Value, DateTimeKind.Unspecified);
+            var peruNow = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow, "America/Lima").DateTime;
+            if (nextCallAt <= peruNow || nextCallAt > peruNow.AddYears(1))
+                throw new InvalidOperationException("Elige una fecha y hora futura dentro del proximo año, en hora de Peru.");
+        }
         if (callNext) session.Start(); else session.Pause();
         using var request = Request(HttpMethod.Post, $"api/records/{prospects[currentIndex].Id}/prospect-call-result");
         request.Content = JsonContent.Create(new { requestId = session.PendingAttemptId, outcome, notes = NotesEditor.Text, nextCallAt });

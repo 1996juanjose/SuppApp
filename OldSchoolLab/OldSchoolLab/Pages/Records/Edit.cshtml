@@ -26,9 +26,15 @@
         <div class="row g-3">
             <div class="col-md-3">
                 <label asp-for="Input.StatusCatalogId" class="form-label"></label>
-                <select asp-for="Input.StatusCatalogId" asp-items="Model.StatusOptions" class="form-select">
+                <select asp-for="Input.StatusCatalogId" class="form-select" id="recordStatus">
                     <option value="">Seleccione</option>
+                    @foreach (var status in Model.StatusOptions)
+                    {
+                        var badge = Model.StatusBadgeLookup.GetValueOrDefault(int.Parse(status.Value!), "secondary");
+                        <option value="@status.Value" data-badge="@badge" class="text-bg-@badge">@status.Text</option>
+                    }
                 </select>
+                <span id="recordStatusBadge" class="badge mt-2" aria-live="polite"></span>
                 <span asp-validation-for="Input.StatusCatalogId" class="text-danger"></span>
             </div>
             <div class="col-md-3">
@@ -285,6 +291,25 @@
 </div>
 
 @section Scripts {
+    <script>
+        (() => {
+            const select = document.getElementById('recordStatus');
+            const badge = document.getElementById('recordStatusBadge');
+            const colors = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'];
+            function showStatusColor() {
+                const option = select.selectedOptions[0];
+                const color = colors.includes(option?.dataset.badge) ? option.dataset.badge : 'secondary';
+                select.classList.remove(...colors.map(value => `text-bg-${value}`));
+                select.classList.add(`text-bg-${color}`);
+                badge.className = `badge mt-2 text-bg-${color}`;
+                badge.textContent = option?.value ? option.textContent : '';
+                badge.hidden = !option?.value;
+            }
+            select.addEventListener('change', showStatusColor);
+            showStatusColor();
+        })();
+    </script>
+
     <partial name="_ValidationScriptsPartial" />
     <script>
         const priceLookup = @Html.Raw(JsonSerializer.Serialize(Model.ProductPriceLookup));
