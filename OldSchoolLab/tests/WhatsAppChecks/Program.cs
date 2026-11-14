@@ -95,6 +95,50 @@ static class Checks
         contact.ConsentExpiresAt = service.Now.AddSeconds(-1); await db.SaveChangesAsync();
         Check((await service.PreviewAsync(actor, [1], false)).Eligible == 1, "legacy authorization dates do not prevent manual selection");
     }
+    private static async Task VerifyLargeFilteredCampaignAsync()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Companies.Add(new Company { Id = 1, Name = "Large filtered list" });
+        db.Statuses.Add(new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto" });
+        var records = Enumerable.Range(1, 1001).Select(id => new CustomerRecord
+        {
+            Id = id, CompanyId = 1, StatusCatalogId = 1, Cellphone = (900000000 + id).ToString()
+        }).ToArray();
+        db.CustomerRecords.AddRange(records);
+        await db.SaveChangesAsync();
+        var service = new WhatsAppCampaignService(db, Config());
+        var campaignId = Guid.NewGuid();
+        await service.CreateAsync(User(1), campaignId, records.Select(x => x.Id).ToArray(), "Prueba de lista filtrada", false);
+        Check(await db.WhatsAppCampaignRecipients.CountAsync(x => x.CampaignId == campaignId) == 1001,
+            "filtered lists above 1000 contacts are not silently truncated or rejected");
+    }
+    private static async Task VerifyCreatineDefaultsAsync()
+    {
+        await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        db.Companies.AddRange(new Company { Id = 1, Name = "Price test" }, new Company { Id = 2, Name = "Other company" });
+        var seed = typeof(SeedData).GetMethod("EnsureCreatinaAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        await (Task)seed.Invoke(null, [db, 1])!;
+        await db.SaveChangesAsync();
+        var creatine = await db.Products.Include(x => x.Prices).SingleAsync();
+        Check(creatine.Prices.Single(x => x.Quantity == 1).Price == 89m
+            && creatine.Prices.Single(x => x.Quantity == 2).Price == 139m
+            && creatine.Prices.Single(x => x.Quantity == 3).Price == 169m, "new creatine uses 89, 139 and 169 soles");
+        creatine.Prices.Single(x => x.Quantity == 2).Price = 149m;
+        creatine.Prices.Single(x => x.Quantity == 3).Price = 189m;
+        db.Products.Add(new Product { CompanyId = 2, Name = "Creatina", Prices = [new ProductPrice { Quantity = 2, Price = 199m }] });
+        await db.SaveChangesAsync();
+        for (var deployment = 0; deployment < 2; deployment++)
+        {
+            await (Task)seed.Invoke(null, [db, 1])!;
+            await db.SaveChangesAsync();
+            Check(creatine.Prices.Single(x => x.Quantity == 2).Price == 139m
+                && creatine.Prices.Single(x => x.Quantity == 3).Price == 169m, "repeated startup corrects existing creatine prices");
+        }
+        Check((await db.Products.Include(x => x.Prices).SingleAsync(x => x.CompanyId == 2)).Prices.Single().Price == 199m,
+            "default-price initialization stays within its company");
+    }
     public static async Task Main(string[] args)
     {
         if (args.Length == 1 && args[0] == "--serve-fixture")
@@ -136,6 +180,8 @@ static class Checks
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
             await Run(options);
+            await VerifyCreatineDefaultsAsync();
+            await VerifyLargeFilteredCampaignAsync();
         }
     }
 }

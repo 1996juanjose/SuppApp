@@ -176,11 +176,6 @@ public partial class IndexModel(ApplicationDbContext db, CashRegisterService cas
             }
         }
 
-        if (!FromDate.HasValue && !ToDate.HasValue && string.IsNullOrEmpty(WhatsAppFilter))
-        {
-            query = query.Where(x => x.CreatedAt.Date == today);
-        }
-
         Records = await query
             .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id)
@@ -440,7 +435,13 @@ public partial class IndexModel(ApplicationDbContext db, CashRegisterService cas
             query = query.Where(x => x.CreatedAt < ToDate.Value.Date.AddDays(1));
         }
 
-        return whatsapp.Filter(query, WhatsAppFilter, null, User);
+        if (!FromDate.HasValue && !ToDate.HasValue)
+        {
+            var today = DateTime.Today;
+            query = query.Where(x => x.CreatedAt.Date == today);
+        }
+
+        return query;
     }
 
     private FileContentResult BuildExcelResult(IReadOnlyCollection<CustomerRecord> records, string fileName, string title)

@@ -448,8 +448,8 @@ public static class SeedData
                 Prices = new List<ProductPrice>
                 {
                     new() { Quantity = 1, Price = 89m },
-                    new() { Quantity = 2, Price = 149m },
-                    new() { Quantity = 3, Price = 189m }
+                    new() { Quantity = 2, Price = 139m },
+                    new() { Quantity = 3, Price = 169m }
                 },
                 CommissionTiers = new List<ProductCommissionTier>
                 {
@@ -466,8 +466,8 @@ public static class SeedData
             creatina.IsActive = true;
             creatina.PurchaseUnitCost = 25m;
             await EnsurePriceAsync(db, creatina.Id, 1, 89m);
-            await EnsurePriceAsync(db, creatina.Id, 2, 149m);
-            await EnsurePriceAsync(db, creatina.Id, 3, 189m);
+            await EnsurePriceAsync(db, creatina.Id, 2, 139m);
+            await EnsurePriceAsync(db, creatina.Id, 3, 169m);
             await EnsureCommissionTierAsync(db, creatina.Id, 1, 5m);
             await EnsureCommissionTierAsync(db, creatina.Id, 2, 6m);
             await EnsureCommissionTierAsync(db, creatina.Id, 3, 7m);

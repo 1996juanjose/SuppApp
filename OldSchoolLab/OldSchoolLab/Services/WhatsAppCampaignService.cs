@@ -104,7 +104,7 @@ public class WhatsAppCampaignService(ApplicationDbContext db, IConfiguration con
     public sealed record Preview(int Selected, int Unique, int Duplicates, int Invalid, int Blocked, int PreviouslyContacted, int Eligible);
     private async Task<(List<CustomerRecord> Records, Preview Preview)> EligibleAsync(int companyId, int[] ids, bool excludePrevious)
     {
-        if (ids is null || ids.Length is < 1 or > 1000) throw new InvalidOperationException("Selecciona entre 1 y 1000 registros.");
+        if (ids is null || ids.Length < 1) throw new InvalidOperationException("No hay registros disponibles para iniciar los envíos.");
         var records = await db.CustomerRecords.AsNoTracking().Where(x => ids.Contains(x.Id) && x.CompanyId == companyId).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id).ToListAsync();
         if (records.Count != ids.Distinct().Count()) throw new InvalidOperationException("Algún registro ya no existe o no pertenece a tu empresa. Actualiza el listado.");
         var selectionOrder = ids.Distinct().Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);

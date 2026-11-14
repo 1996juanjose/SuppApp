@@ -4,9 +4,17 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const selected = new Map();
-    const records = new Map([...document.querySelectorAll('.wa-select')].map(box => [Number(box.value), { recordId: Number(box.value), phone: box.dataset.phone, name: box.dataset.name || 'Registro', status: 'Pending' }]));
+    const records = new Map([...document.querySelectorAll('[data-wa-record]')].map(row => [Number(row.dataset.waRecord), {
+        recordId: Number(row.dataset.waRecord), phone: row.dataset.phone, name: row.dataset.name || 'Registro',
+        allowed: row.dataset.allowed === 'yes', status: 'Pending'
+    }]));
+    const filtered = new Map();
+    for (const record of records.values()) {
+        if (record.allowed && !filtered.has(record.phone)) filtered.set(record.phone, record.recordId);
+    }
+    let useFilters = true;
     let state, campaign, busy = false, creationId, popup, loaded = false;
-    const endpoint = handler => root.dataset.endpoint + '?handler=' + handler;
+    const endpoint = handler => root.dataset.endpoint + window.location.search + (window.location.search ? '&' : '?') + 'handler=' + handler;
     function feedback(text, error = false) {
         el('waFeedback').textContent = text;
         el('waFeedback').className = 'small mb-3 ' + (error ? 'text-danger' : 'text-success');
@@ -27,7 +35,7 @@
         const items = campaign ? campaign.contacts : [...selected.values()].map(id => records.get(id));
         const list = el('waContacts'); list.replaceChildren();
         el('waListCount').textContent = items.length;
-        if (!items.length) { list.textContent = 'Marca los contactos en el listado para comenzar.'; return; }
+        if (!items.length) { list.textContent = 'No hay contactos disponibles con los filtros aplicados.'; return; }
         for (const item of items) {
             const row = document.createElement('div'); row.className = 'list-group-item d-flex justify-content-between align-items-center gap-2';
             const current = item.id && item.id === campaign?.current?.id;
@@ -46,15 +54,15 @@
         }
     }
     function paint() {
-        el('waStart').textContent = campaign?.pending && !selected.size ? `Continuar WhatsApp (${campaign.pending} pendientes)` : `WhatsApp masivo (${selected.size})`;
+        el('waStart').textContent = campaign?.pending ? `Continuar WhatsApp (${campaign.pending} pendientes)` : `WhatsApp masivo (${filtered.size})`;
         const c = campaign, pending = !!c?.pending, active = pending && c.status === 'Active';
-        el('waProgress').textContent = c ? `${c.sent} de ${c.total} enviados · ${c.pending} pendientes${c.skipped ? ` · ${c.skipped} omitidos` : ''}${c.status === 'Paused' ? ' · Pausado' : c.status === 'Completed' ? ' · Completado' : ''}` : `${selected.size} contactos seleccionados`;
+        el('waProgress').textContent = c ? `${c.sent} de ${c.total} enviados · ${c.pending} pendientes${c.skipped ? ` · ${c.skipped} omitidos` : ''}${c.status === 'Paused' ? ' · Pausado' : c.status === 'Completed' ? ' · Completado' : ''}` : `${selected.size} contactos del listado filtrado`;
         el('waCurrentPanel').hidden = !c?.current;
         el('waCurrent').textContent = c?.current ? `${c.current.name || 'Registro'} · ${c.current.phone}${!c.current.allowed ? ' · No disponible: omitir para continuar' : ''}` : '';
         const dirty = pending && el('waMessage').value.trim() !== c.message;
         el('waMessage').disabled = busy;
         el('waConfirm').hidden = pending; el('waConfirm').disabled = busy || !selected.size;
-        el('waConfirm').textContent = c?.status === 'Completed' ? 'Comenzar nueva selección' : 'Comenzar envíos';
+        el('waConfirm').textContent = c?.status === 'Completed' ? 'Comenzar nueva tanda' : 'Comenzar envíos';
         el('waOpen').hidden = !active; el('waOpen').disabled = busy || dirty || !c?.current?.allowed;
         el('waSent').hidden = !active; el('waSent').disabled = busy || dirty || !c?.current?.allowed || !c?.current?.openedAt;
         el('waSkip').hidden = !active; el('waSkip').disabled = busy;
@@ -62,15 +70,7 @@
         el('waContinue').hidden = !pending || c.status !== 'Paused'; el('waContinue').disabled = busy;
         el('waSaveMessage').hidden = false; el('waSaveMessage').disabled = busy;
         el('waSaveMessage').textContent = pending ? 'Guardar mensaje para los pendientes' : 'Guardar mensaje para después';
-        el('waStart').disabled = busy;
-        for (const box of document.querySelectorAll('.wa-select')) {
-            if (box.dataset.selectable === undefined) box.dataset.selectable = box.disabled ? 'no' : 'yes';
-            box.disabled = busy || box.dataset.selectable === 'no'; box.checked = selected.has(box.dataset.phone);
-        }
-        const boxes = [...document.querySelectorAll('.wa-select')].filter(x => x.dataset.selectable === 'yes');
-        el('waSelectAll').disabled = busy || !boxes.length;
-        el('waSelectAll').checked = boxes.length > 0 && boxes.every(x => selected.has(x.dataset.phone));
-        el('waSelectAll').indeterminate = !el('waSelectAll').checked && boxes.some(x => selected.has(x.dataset.phone));
+        el('waStart').disabled = busy || (!filtered.size && !pending);
         document.querySelectorAll('.wa-single').forEach(button => { if (button.dataset.selectable === undefined) button.dataset.selectable = button.disabled ? 'no' : 'yes'; button.disabled = busy || button.dataset.selectable === 'no'; });
         renderContacts();
     }
@@ -87,26 +87,22 @@
         loaded = true;
         paint();
     }
-    function changedSelection() { creationId = null; if (!campaign?.pending) campaign = null; paint(); }
-    document.querySelectorAll('.wa-select').forEach(box => box.addEventListener('change', () => {
-        if (box.checked) selected.set(box.dataset.phone, Number(box.value)); else selected.delete(box.dataset.phone);
-        changedSelection();
-    }));
-    el('waSelectAll').addEventListener('change', event => {
-        document.querySelectorAll('.wa-select:not(:disabled)').forEach(box => {
-            if (event.target.checked) { if (!selected.has(box.dataset.phone)) selected.set(box.dataset.phone, Number(box.value)); }
-            else selected.delete(box.dataset.phone);
-        }); changedSelection();
-    });
     async function openSelection() {
         feedback(''); el('waHistory').hidden = true;
         await loadState(false);
-        if (campaign?.pending && selected.size) feedback('Continúa los pendientes guardados. Al terminarlos podrás iniciar otra selección.');
+        if (campaign?.pending && selected.size) feedback('Continúa los pendientes guardados. Al terminarlos podrás iniciar otra tanda con los filtros actuales.');
     }
-    el('waStart').addEventListener('click', () => { showModal(); run(openSelection); });
+    el('waStart').addEventListener('click', () => {
+        if (busy) return;
+        useFilters = true; selected.clear();
+        for (const [phone, id] of filtered) selected.set(phone, id);
+        creationId = null; showModal(); run(openSelection);
+    });
     document.querySelectorAll('.wa-single').forEach(button => button.addEventListener('click', () => {
         const id = Number(button.dataset.record), record = records.get(id);
-        selected.clear(); selected.set(record.phone, id); changedSelection(); showModal(); run(openSelection);
+        if (busy || !record?.allowed) return;
+        useFilters = false; selected.clear(); selected.set(record.phone, id); creationId = null;
+        showModal(); run(openSelection);
     }));
     el('waMessage').addEventListener('input', () => { creationId = null; paint(); });
     el('waSaveMessage').addEventListener('click', () => run(async () => { const editing = !!campaign?.pending; await api('WhatsAppMessage', { campaignId: editing ? campaign.id : undefined, message: el('waMessage').value }); await loadState(); feedback(editing ? 'Mensaje actualizado. Abre WhatsApp Web nuevamente para usarlo.' : 'Mensaje guardado.'); }));
@@ -141,7 +137,7 @@
         run(async () => {
             creationId ||= crypto.randomUUID();
             await api('WhatsAppMessage', { message: el('waMessage').value });
-            await api('WhatsAppCreate', { campaignId: creationId, ids: [...selected.values()], message: el('waMessage').value, excludePrevious: false });
+            await api('WhatsAppCreate', { campaignId: creationId, ids: [...selected.values()], useFilters, message: el('waMessage').value, excludePrevious: false });
             selected.clear(); await loadState(); feedback('Envía el mensaje en WhatsApp y vuelve para confirmar.'); await openCurrent(target);
         });
     });
@@ -172,5 +168,6 @@
             el('waHistory').hidden = false; el('waHistory').open = true;
         });
     }));
+    for (const [phone, id] of filtered) selected.set(phone, id);
     run(() => loadState(false));
 })();

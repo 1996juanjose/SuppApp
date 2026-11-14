@@ -37,16 +37,20 @@ internal static class FixtureHost
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            db.Companies.Add(new Company { Id = 1, Name = "Empresa de prueba" });
+            db.Companies.AddRange(new Company { Id = 1, Name = "Empresa de prueba" }, new Company { Id = 2, Name = "Otra empresa" });
             db.Statuses.AddRange(
                 new StatusCatalog { Id = 1, CompanyId = 1, Name = "Prospecto", BadgeClass = "primary" },
                 new StatusCatalog { Id = 2, CompanyId = 1, Name = "Rechazo", BadgeClass = "danger" },
-                new StatusCatalog { Id = 3, CompanyId = 1, Name = "Interesado", BadgeClass = "warning" });
+                new StatusCatalog { Id = 3, CompanyId = 1, Name = "Interesado", BadgeClass = "warning" },
+                new StatusCatalog { Id = 4, CompanyId = 2, Name = "Prospecto", BadgeClass = "primary" });
             db.CustomerRecords.AddRange(
                 new CustomerRecord { Id = 1, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000001", NameOrReference = "Cliente de prueba A", CreatedAt = DateTime.Today },
                 new CustomerRecord { Id = 2, CompanyId = 1, StatusCatalogId = 1, Cellphone = "+51 900 000 001", NameOrReference = "Mismo número anterior", CreatedAt = DateTime.Today },
                 new CustomerRecord { Id = 3, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000003", NameOrReference = "Cliente de prueba B", CreatedAt = DateTime.Today },
-                new CustomerRecord { Id = 4, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000004", NameOrReference = "No contactar", CreatedAt = DateTime.Today });
+                new CustomerRecord { Id = 4, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000004", NameOrReference = "No contactar", CreatedAt = DateTime.Today },
+                new CustomerRecord { Id = 5, CompanyId = 1, StatusCatalogId = 1, Cellphone = "900000005", NameOrReference = "Contacto antiguo", CreatedAt = DateTime.Today.AddDays(-5) },
+                new CustomerRecord { Id = 6, CompanyId = 1, StatusCatalogId = 3, Cellphone = "900000006", NameOrReference = "Interesado de prueba", CreatedAt = DateTime.Today },
+                new CustomerRecord { Id = 7, CompanyId = 2, StatusCatalogId = 4, Cellphone = "900000007", NameOrReference = "Contacto otra empresa", CreatedAt = DateTime.Today });
             await db.SaveChangesAsync();
             var service = scope.ServiceProvider.GetRequiredService<WhatsAppCampaignService>();
             await service.SetConsentAsync(FixtureAuthentication.Principal(), 4, "DoNotContact", "Prueba de exclusión", null);

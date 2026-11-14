@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Registros";
     var dateCulture = CultureInfo.GetCultureInfo("es-PE");
-    int totalCols = 20 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
+    int totalCols = 19 + (Model.CanEdit ? 1 : 0) + (Model.CanViewAudit ? 1 : 0) + (Model.CanDelete ? 1 : 0);
 }
 
 <div class="records-workspace">
@@ -45,7 +45,7 @@
     <div class="records-actions d-flex gap-2 align-items-center flex-wrap">
         @if (Model.CanWhatsApp)
         {
-            <button type="button" id="waStart" class="btn btn-outline-success">WhatsApp masivo (0)</button>
+            <button type="button" id="waStart" class="btn btn-outline-success">WhatsApp masivo</button>
 
         }
         @if (Model.CanEdit)
@@ -196,7 +196,6 @@
                     <button type="button" class="btn btn-sm btn-outline-primary w-100" id="btnWholeMonth">Todo el mes</button>
                 </div>
             </div>
-            <div class="col-md-3"><label asp-for="WhatsAppFilter" class="form-label">Reactivado</label><select asp-for="WhatsAppFilter" class="form-select"><option value="">Todos</option><option value="yes">Sí</option><option value="no">No</option></select></div>
         </div>
     </div>
     <div class="card-footer records-filter-actions d-flex flex-wrap justify-content-end gap-2">
@@ -330,7 +329,6 @@
     <table class="table records-table align-middle">
         <thead class="table-light">
             <tr>
-                <th><input type="checkbox" id="waSelectAll" class="form-check-input" aria-label="Seleccionar números visibles habilitados" disabled="@(!Model.CanWhatsApp)" /></th>
                 @if (Model.CanEdit)
                 {
                     <th></th>
@@ -378,8 +376,8 @@
                 var rowClass = item.StatusCatalog.Name == "Interesado" ? "record-interested" : "";
                 var waPhone = OldSchoolLab.Services.WhatsAppCampaignService.Phone(item.Cellphone);
                 var waAllowed = Model.CanWhatsApp && OldSchoolLab.Services.WhatsAppCampaignService.ValidPhone(waPhone) && OldSchoolLab.Services.WhatsAppCampaignService.Allowed(Model.WhatsAppConsents.GetValueOrDefault(waPhone), Model.WhatsAppNow);
-                <tr class="@rowClass">
-                    <td><input type="checkbox" class="form-check-input wa-select" value="@item.Id" data-phone="@waPhone" data-name="@item.NameOrReference" aria-label="Seleccionar @item.Cellphone" title="@(waAllowed ? "Seleccionar para WhatsApp" : "Número inválido o con solicitud de no contacto registrada")" disabled="@(!waAllowed)" /></td>
+                <tr class="@rowClass" data-wa-record="@item.Id" data-phone="@waPhone"
+                    data-name="@item.NameOrReference" data-allowed="@(waAllowed ? "yes" : "no")">
                     @if (Model.CanEdit)
                     {
                         <td>
