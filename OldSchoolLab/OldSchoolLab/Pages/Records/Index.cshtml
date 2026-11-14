@@ -197,9 +197,7 @@
             </div>
         </div>
     </div>
-    <div class="card-footer records-filter-actions d-flex flex-wrap gap-2">
-        <a asp-page="/Records/Index" class="btn btn-outline-secondary">Limpiar</a>
-        <button type="submit" class="btn btn-primary">Filtrar</button>
+    <div class="card-footer records-filter-actions d-flex flex-wrap justify-content-end gap-2">
         <button type="button" id="btnExportFiltered" class="btn btn-outline-success" title="Exportar filtrados (.csv)" aria-label="Exportar filtrados (.csv)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
                 <path d="M14 2h5l3 3v16H9V2h5Z" stroke="currentColor" stroke-width="1.5"/>
@@ -208,6 +206,8 @@
                 <path d="m5 10 5 6m0-6-5 6" stroke="white" stroke-width="1.8"/>
             </svg>
         </button>
+        <a asp-page="/Records/Index" class="btn btn-outline-secondary">Limpiar</a>
+        <button type="submit" class="btn btn-primary">Filtrar</button>
     </div>
 </form>
 

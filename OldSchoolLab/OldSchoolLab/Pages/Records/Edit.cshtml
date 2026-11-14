@@ -25,16 +25,28 @@
 
         <div class="row g-3">
             <div class="col-md-3">
-                <label asp-for="Input.StatusCatalogId" class="form-label"></label>
-                <select asp-for="Input.StatusCatalogId" class="form-select" id="recordStatus">
-                    <option value="">Seleccione</option>
-                    @foreach (var status in Model.StatusOptions)
-                    {
-                        var badge = Model.StatusBadgeLookup.GetValueOrDefault(int.Parse(status.Value!), "secondary");
-                        <option value="@status.Value" data-badge="@badge" class="text-bg-@badge">@status.Text</option>
-                    }
-                </select>
-                <span id="recordStatusBadge" class="badge mt-2" aria-live="polite"></span>
+                <label asp-for="Input.StatusCatalogId" for="recordStatusButton" id="recordStatusLabel" class="form-label"></label>
+                <input asp-for="Input.StatusCatalogId" type="hidden" id="recordStatus" />
+                <div class="dropdown w-100">
+                    <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button"
+                            id="recordStatusButton" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                            aria-expanded="false" aria-controls="recordStatusMenu">
+                        <span id="recordStatusBadge">Seleccione</span>
+                    </button>
+                    <div class="dropdown-menu p-2 w-100" id="recordStatusMenu" role="radiogroup"
+                         aria-labelledby="recordStatusLabel" style="max-height: 420px; overflow-y: auto;">
+                        @foreach (var status in Model.StatusOptions)
+                        {
+                            var badge = Model.StatusBadgeLookup.GetValueOrDefault(int.Parse(status.Value!), "secondary");
+                            <label class="dropdown-item d-flex align-items-center gap-2 px-3 py-2 mb-0" style="cursor: pointer;">
+                                <input type="radio" name="recordStatusChoice" value="@status.Value"
+                                       class="form-check-input js-record-status m-0" data-badge="@badge" data-name="@status.Text"
+                                       @(Model.Input.StatusCatalogId.ToString() == status.Value ? "checked" : null) />
+                                <span class="badge text-bg-@badge">@status.Text</span>
+                            </label>
+                        }
+                    </div>
+                </div>
                 <span asp-validation-for="Input.StatusCatalogId" class="text-danger"></span>
             </div>
             <div class="col-md-3">
@@ -293,19 +305,24 @@
 @section Scripts {
     <script>
         (() => {
-            const select = document.getElementById('recordStatus');
+            const value = document.getElementById('recordStatus');
+            const button = document.getElementById('recordStatusButton');
             const badge = document.getElementById('recordStatusBadge');
+            const choices = document.querySelectorAll('.js-record-status');
             const colors = ['primary', 'secondary', 'success', 'danger', 'warning', 'info', 'light', 'dark'];
             function showStatusColor() {
-                const option = select.selectedOptions[0];
-                const color = colors.includes(option?.dataset.badge) ? option.dataset.badge : 'secondary';
-                select.classList.remove(...colors.map(value => `text-bg-${value}`));
-                select.classList.add(`text-bg-${color}`);
-                badge.className = `badge mt-2 text-bg-${color}`;
-                badge.textContent = option?.value ? option.textContent : '';
-                badge.hidden = !option?.value;
+                const selected = document.querySelector('.js-record-status:checked');
+                const color = colors.includes(selected?.dataset.badge) ? selected.dataset.badge : 'secondary';
+                value.value = selected?.value || '';
+                badge.className = selected ? `badge text-bg-${color}` : '';
+                badge.textContent = selected?.dataset.name || 'Seleccione';
             }
-            select.addEventListener('change', showStatusColor);
+            choices.forEach(choice => choice.addEventListener('change', () => {
+                showStatusColor();
+                value.dispatchEvent(new Event('change', { bubbles: true }));
+                bootstrap.Dropdown.getOrCreateInstance(button).hide();
+                button.focus();
+            }));
             showStatusColor();
         })();
     </script>
