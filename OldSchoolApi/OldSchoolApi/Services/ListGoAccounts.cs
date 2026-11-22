@@ -1,4 +1,5 @@
 using Google.Apis.Auth;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OldSchoolApi.Data;
@@ -17,6 +18,7 @@ public static class ListGoAccounts
         accounts.MapPost("/login", (Credentials input, ApiDbContext db, CancellationToken ct) =>
             Handle(input, db, false, ct));
         accounts.MapPost("/google", SignInWithGoogleAsync);
+        app.MapListGoLists();
     }
 
     private static async Task<IResult> SignInWithGoogleAsync(
@@ -48,7 +50,7 @@ public static class ListGoAccounts
             ON CONFLICT (google_subject) DO UPDATE SET google_subject = EXCLUDED.google_subject
             RETURNING id AS "Value"
             """).ToListAsync(ct);
-        return Results.Ok(new { accountId = stored.Single() });
+        return await CreateSessionAsync(stored.Single(), db, ct);
     }
 
     public sealed record GoogleCredentials(string? IdToken);
@@ -67,7 +69,7 @@ public static class ListGoAccounts
             var hash = Hasher.HashPassword(email, password);
             var inserted = await db.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO listgo_accounts (id, email, password_hash) VALUES ({id}, {email}, {hash}) ON CONFLICT (email) DO NOTHING", ct);
-            return inserted == 1 ? Results.Ok(new { accountId = id }) : Results.Conflict();
+            return inserted == 1 ? await CreateSessionAsync(id, db, ct) : Results.Conflict();
         }
 
         var account = await db.Database.SqlQuery<Account>(
@@ -75,7 +77,17 @@ public static class ListGoAccounts
             .SingleOrDefaultAsync(ct);
         if (account is null || Hasher.VerifyHashedPassword(email, account.PasswordHash, password) == PasswordVerificationResult.Failed)
             return Results.Unauthorized();
-        return Results.Ok(new { accountId = account.Id });
+        return await CreateSessionAsync(account.Id, db, ct);
+    }
+
+    private static async Task<IResult> CreateSessionAsync(Guid accountId, ApiDbContext db, CancellationToken ct)
+    {
+        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)));
+        var expires = DateTime.UtcNow.AddDays(7);
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO listgo_sessions (token_hash, account_id, expires_at) VALUES ({hash}, {accountId}, {expires})", ct);
+        return Results.Ok(new { accountId, accessToken = token });
     }
 
     public static async Task EnsureAsync(IServiceProvider services)
@@ -91,6 +103,17 @@ public static class ListGoAccounts
             CREATE TABLE IF NOT EXISTS listgo_google_accounts (
                 id uuid PRIMARY KEY,
                 google_subject text NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS listgo_sessions (
+                token_hash varchar(64) PRIMARY KEY,
+                account_id uuid NOT NULL,
+                expires_at timestamptz NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS listgo_list_stores (
+                account_id uuid PRIMARY KEY,
+                revision integer NOT NULL,
+                payload jsonb NOT NULL,
+                updated_at timestamptz NOT NULL DEFAULT now()
             )
             """);
     }
