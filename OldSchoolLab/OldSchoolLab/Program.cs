@@ -48,6 +48,11 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<CashRegisterService>();
 builder.Services.AddScoped<WhatsAppCampaignService>();
+builder.Services.AddSingleton<EvolutionSender>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<MassMessageWorker>();
+builder.Services.AddHttpClient("evolution-bulk", client => client.Timeout = TimeSpan.FromSeconds(25))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<IPaymentProofStorage, PaymentProofStorage>();
 builder.Services.AddScoped<ICompanyLogoStorage, CompanyLogoStorage>();
 builder.Services.AddScoped<ChatApiClient>();
@@ -91,6 +96,8 @@ var companyLogosPath = Path.Combine(app.Environment.ContentRootPath, "storage", 
 Directory.CreateDirectory(companyLogosPath);
 
 await SeedData.InitializeAsync(app.Services);
+using (var scope = app.Services.CreateScope())
+    await MassMessageSchema.EnsureAsync(scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
 
 app.Use(async (ctx, next) =>
 {

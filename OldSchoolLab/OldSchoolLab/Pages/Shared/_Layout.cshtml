@@ -31,6 +31,10 @@
                         {
                             <li class="nav-item"><a class="nav-link @(currentPage.StartsWith("/Cash") ? "active" : "")" asp-page="/Cash/Index">Caja</a></li>
                         }
+                        @if (WhatsAppCampaignService.CanUse(User))
+                        {
+                            <li class="nav-item"><a class="nav-link @(currentPage.StartsWith("/MassMessages") ? "active" : "")" asp-page="/MassMessages/Index">Envíos masivos</a></li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link @(currentPage.StartsWith("/Chat", StringComparison.OrdinalIgnoreCase) ? "active" : "")" asp-area="" asp-page="/Chat/Index">Chat</a>
                         </li>

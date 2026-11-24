@@ -24,6 +24,10 @@ internal static class FixtureHost
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddInMemoryCollection();
         builder.Configuration["App:TimeZoneId"] = "America/Lima";
+        // Fake connection enables draft creation only; this host has no sender worker.
+        builder.Configuration["Evolution:Companies:1:BaseUrl"] = "https://evolution.invalid";
+        builder.Configuration["Evolution:Companies:1:Instance"] = "Fixture";
+        builder.Configuration["Evolution:Companies:1:ApiKey"] = "fake-ui-test-key";
         builder.WebHost.UseUrls("http://127.0.0.1:5187");
         builder.Services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase("whatsapp-ui-fixture"));
         builder.Services.AddScoped<CashRegisterService>(); builder.Services.AddScoped<WhatsAppCampaignService>();

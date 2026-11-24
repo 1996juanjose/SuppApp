@@ -20,6 +20,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     public DbSet<WhatsAppContact> WhatsAppContacts => Set<WhatsAppContact>();
+    public DbSet<MassMessageCampaign> MassMessageCampaigns => Set<MassMessageCampaign>();
+    public DbSet<MassMessageRecipient> MassMessageRecipients => Set<MassMessageRecipient>();
+    public DbSet<MassMessageSender> MassMessageSenders => Set<MassMessageSender>();
     public DbSet<WhatsAppConsentChange> WhatsAppConsentChanges => Set<WhatsAppConsentChange>();
     public DbSet<WhatsAppMessageSetting> WhatsAppMessageSettings => Set<WhatsAppMessageSetting>();
     public DbSet<WhatsAppCampaign> WhatsAppCampaigns => Set<WhatsAppCampaign>();
@@ -28,6 +31,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+        builder.Entity<MassMessageRecipient>().HasIndex(x => new { x.CampaignId, x.Phone }).IsUnique();
+        builder.Entity<MassMessageRecipient>().HasOne<MassMessageCampaign>().WithMany().HasForeignKey(x => x.CampaignId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<WhatsAppContact>().HasIndex(x => new { x.CompanyId, x.Phone }).IsUnique();
         builder.Entity<WhatsAppMessageSetting>().HasIndex(x => new { x.CompanyId, x.UserId }).IsUnique();
         builder.Entity<WhatsAppCampaign>().HasIndex(x => new { x.CompanyId, x.UserId, x.CreatedAt });

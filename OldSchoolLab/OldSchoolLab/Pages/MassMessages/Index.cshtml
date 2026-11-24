@@ -1,0 +1,104 @@
+@page
+@model OldSchoolLab.Pages.MassMessages.IndexModel
+@using OldSchoolLab.Services
+@{ ViewData["Title"] = "Envíos masivos"; }
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+    <div><h1 class="h3 mb-1">Envíos masivos</h1><p class="text-muted mb-0">Prepara tu mensaje y elige a quién enviarlo por WhatsApp.</p></div>
+    @if (Model.Campaign != null) { <a asp-page="Index" class="btn btn-outline-primary">Nueva campaña</a> }
+</div>
+@if (!Model.Ready)
+{
+    <div class="alert alert-warning">Falta configurar la conexión de Evolution para esta empresa. Solicita al administrador que la habilite.</div>
+}
+@if (Model.Campaign is { } campaign)
+{
+    var total = Model.Recipients.Count;
+    var accepted = Model.Recipients.Count(x => x.Status == "Accepted");
+    var pending = Model.Recipients.Count(x => x.Status is "Pending" or "Sending");
+    <div class="card p-4 mb-4">
+        <div class="d-flex justify-content-between gap-2"><h2 class="h4">@campaign.Name</h2><span class="badge bg-primary align-self-start">@MassMessageRules.Label(campaign.Status)</span></div>
+        <p class="text-muted">@total destinatarios · Intervalo: @campaign.IntervalSeconds segundos</p>
+        <div class="rounded bg-light p-3 mb-3" style="white-space:pre-wrap">@campaign.Message</div>
+        <p>@accepted aceptados · @pending pendientes · @(total - accepted - pending) con incidencias u omitidos</p>
+        <progress class="w-100 mb-3" value="@(total - pending)" max="@total" aria-label="Progreso de la campaña"></progress>
+        @if (!string.IsNullOrEmpty(campaign.Notice)) { <p class="text-muted">@campaign.Notice</p> }
+        @if (campaign.Status == "Draft") { <p>Revisa el mensaje y la lista antes de iniciar. Todavía no se ha enviado ningún mensaje.</p> }
+        @if (campaign.Status == "Paused") { <p>Continuar procesa los pendientes; los envíos rechazados o sin confirmar no se repiten.</p> }
+        @if (campaign.Status is "Running" or "Paused" or "Draft")
+        {
+            <form method="post" asp-page-handler="Control" class="d-flex flex-wrap gap-2">
+                <input type="hidden" name="id" value="@campaign.Id" />
+                @if (campaign.Status is "Draft" or "Paused")
+                { <button class="btn btn-primary" name="action" value="start" disabled="@(!Model.Ready)">@(campaign.Status == "Draft" ? "Iniciar envíos" : "Continuar con pendientes")</button> }
+                @if (campaign.Status == "Running") { <button class="btn btn-outline-primary" name="action" value="pause">Pausar</button> }
+                <button class="btn btn-outline-danger" name="action" value="cancel">Cancelar campaña</button>
+            </form>
+            <small class="text-muted mt-2">Pausar o cancelar detiene los siguientes mensajes; un envío en curso puede terminar.</small>
+        }
+    </div>
+    <div class="card p-3 mb-4"><h2 class="h5">Destinatarios y resultados</h2>
+        <p class="text-muted">“Aceptado por Evolution” confirma la solicitud; la entrega y la lectura no se han verificado.</p>
+        <div class="table-responsive"><table class="table align-middle"><thead><tr><th>Nombre</th><th>Número</th><th>Resultado</th><th>Detalle</th></tr></thead><tbody>
+        @foreach (var recipient in Model.Recipients)
+        { <tr><td>@recipient.Name</td><td>@recipient.Phone</td><td>@MassMessageRules.Label(recipient.Status)</td><td>@recipient.Detail @if (recipient.MessageId.Length > 0) { <small class="d-block text-muted">ID: @recipient.MessageId</small> }</td></tr> }
+        </tbody></table></div>
+    </div>
+    @if (campaign.Status == "Running")
+    { <script>setInterval(() => { if (!document.hidden) window.location.reload(); }, 4000);</script> }
+}
+else
+{
+    <div asp-validation-summary="All" class="text-danger mb-3"></div>
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5"><div class="card p-4 h-100">
+            <h2 class="h5">1. Prepara tu campaña</h2>
+            <form id="campaign-form" method="post" asp-page-handler="Create">
+                <input asp-for="Input.Id" type="hidden" />
+                @foreach (var selected in Model.Input.RecordIds.Except(Model.Prospects.Select(x => x.Id)))
+                { <input type="hidden" name="Input.RecordIds" value="@selected" /> }
+                <label asp-for="Input.Name" class="form-label">Nombre de la campaña</label>
+                <input asp-for="Input.Name" class="form-control mb-3" maxlength="120" required />
+                <label asp-for="Input.Message" class="form-label">Mensaje</label>
+                <textarea asp-for="Input.Message" class="form-control mb-3" rows="7" maxlength="4000" required placeholder="Escribe el mensaje que recibirán tus contactos"></textarea>
+                <label asp-for="Input.IntervalSeconds" class="form-label">Intervalo entre mensajes (segundos)</label>
+                <input asp-for="Input.IntervalSeconds" class="form-control mb-2" type="number" min="1" max="86400" required />
+                <small class="text-muted d-block mb-3">Los envíos son uno por uno. El intervalo no garantiza evitar restricciones de WhatsApp.</small>
+                <label asp-for="Input.Numbers" class="form-label">Pegar números (opcional)</label>
+                <textarea asp-for="Input.Numbers" class="form-control mb-2" rows="5" maxlength="20000" placeholder="Un número por línea, o separados por coma o punto y coma"></textarea>
+                <small class="text-muted d-block mb-3">Incluye código de país. Los celulares peruanos de 9 dígitos reciben +51 automáticamente. Se combinan con los prospectos seleccionados y se eliminan duplicados.</small>
+                <p class="text-muted">Los contactos marcados como “No contactar” o con autorización vencida se excluyen.</p>
+                <button class="btn btn-primary w-100" disabled="@(!Model.Ready)">Revisar destinatarios</button>
+            </form>
+        </div></div>
+        <div class="col-lg-7"><div class="card p-4 h-100">
+            <h2 class="h5">2. Selecciona prospectos (opcional)</h2>
+            <div class="row g-2 mb-3">
+                <div class="col-12"><label asp-for="Search" class="form-label">Nombre o celular</label><input asp-for="Search" form="campaign-form" class="form-control" /></div>
+                <div class="col-sm-6"><label asp-for="FromDate" class="form-label">Registrados desde</label><input asp-for="FromDate" form="campaign-form" type="date" class="form-control" /></div>
+                <div class="col-sm-6"><label asp-for="ToDate" class="form-label">Hasta</label><input asp-for="ToDate" form="campaign-form" type="date" class="form-control" /></div>
+                <div class="col-12"><button class="btn btn-outline-primary" form="campaign-form" formaction="@Url.Page("Index", "Filter")" formnovalidate>Filtrar prospectos</button></div>
+            </div>
+            <small class="text-muted mb-2">Hasta 500 prospectos por búsqueda. La selección se conserva al cambiar los filtros.</small>
+            <label class="mb-2"><input type="checkbox" id="select-all" /> Seleccionar los mostrados · <span id="selected-count">0</span> seleccionados en total</label>
+            <div class="table-responsive" style="max-height:520px;overflow:auto"><table class="table align-middle"><thead><tr><th>Elegir</th><th>Nombre</th><th>Celular</th></tr></thead><tbody>
+            @foreach (var prospect in Model.Prospects)
+            {
+                <tr><td><input type="checkbox" class="recipient-check" form="campaign-form" name="Input.RecordIds" value="@prospect.Id" checked="@(Model.Input.RecordIds.Contains(prospect.Id))" aria-label="Seleccionar @prospect.NameOrReference" /></td><td>@prospect.NameOrReference</td><td>@prospect.Cellphone</td></tr>
+            }
+            </tbody></table></div>
+            @if (Model.Prospects.Count == 0) { <p class="text-muted">No hay prospectos para estos filtros. También puedes pegar números.</p> }
+        </div></div>
+    </div>
+    <script>
+        const checks = [...document.querySelectorAll('.recipient-check')];
+        const hiddenSelected = document.querySelectorAll('input[type="hidden"][name="Input.RecordIds"]').length;
+        const update = () => document.getElementById('selected-count').textContent = checks.filter(x => x.checked).length + hiddenSelected;
+        document.getElementById('select-all').addEventListener('change', e => { checks.forEach(x => x.checked = e.target.checked); update(); });
+        checks.forEach(x => x.addEventListener('change', update)); update();
+    </script>
+}
+<div class="card p-4"><h2 class="h5">Mis campañas recientes</h2>
+    @if (Model.Campaigns.Count == 0) { <p class="text-muted mb-0">Todavía no has creado campañas.</p> }
+    @foreach (var item in Model.Campaigns)
+    { <a asp-page="Index" asp-route-CampaignId="@item.Id" class="d-flex justify-content-between border-bottom py-3 text-decoration-none"><span>@item.Name</span><span>@MassMessageRules.Label(item.Status)</span></a> }
+</div>
