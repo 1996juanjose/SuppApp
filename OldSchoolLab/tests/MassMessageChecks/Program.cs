@@ -47,7 +47,7 @@ try
     var page = Page(user);
     await page.OnGetAsync();
     Check(page.Prospects.Count == 3, "prospect query is company scoped");
-    page.Input = new() { Name = "Test campaign", Message = "Hello 🧪", IntervalSeconds = 2,
+    page.Input = new() { Message = "Hello 🧪", IntervalSeconds = 2,
         RecordIds = [1, 2, 3], Numbers = "+51 900 000 001\n900000002\n123\n900000003" };
     var result = await page.OnPostCreateAsync(); var id = page.Input.Id;
     Check(result is RedirectToPageResult && await db.MassMessageRecipients.CountAsync(x => x.CampaignId == id) == 2,
@@ -55,7 +55,7 @@ try
     Check(fake.Count == 0 && (await db.MassMessageCampaigns.FindAsync(id))!.Status == "Draft", "review creates a draft and performs no HTTP send");
     await page.OnPostCreateAsync();
     Check(await db.MassMessageCampaigns.CountAsync() == 1, "double submit cannot duplicate a campaign");
-    var hostile = Page(user); hostile.Input = new() { Name = "Cross-company", Message = "test", RecordIds = [4] };
+    var hostile = Page(user); hostile.Input = new() { Message = "test", RecordIds = [4] };
     Check(await hostile.OnPostCreateAsync() is PageResult && !hostile.ModelState.IsValid, "cross-company selections rejected");
     Check(await Page(Principal(2)).OnPostControlAsync(id, "start") is NotFoundResult, "another company cannot start a campaign");
     Check(await Page(Principal(1, "other")).OnPostControlAsync(id, "start") is NotFoundResult, "another seller cannot start a campaign");

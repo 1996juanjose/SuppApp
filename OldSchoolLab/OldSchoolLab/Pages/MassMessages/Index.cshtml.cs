@@ -21,13 +21,13 @@ public class IndexModel(ApplicationDbContext db, IConfiguration config, WhatsApp
     public MassMessageCampaign? Campaign { get; set; }
     public List<MassMessageRecipient> Recipients { get; set; } = [];
     public bool Ready { get; set; }
+    public string[] ConfigurationIssues { get; set; } = [];
     public int CompanyId => User.GetCompanyId()!.Value;
     private string Actor => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
     public class InputModel
     {
         public Guid Id { get; set; } = Guid.NewGuid();
-        [Required, StringLength(120)] public string Name { get; set; } = "";
         [Required, StringLength(4000)] public string Message { get; set; } = "";
         [Range(1, 86400)] public int IntervalSeconds { get; set; } = 30;
         [StringLength(20000)] public string? Numbers { get; set; }
@@ -52,7 +52,9 @@ public class IndexModel(ApplicationDbContext db, IConfiguration config, WhatsApp
 
     private async Task LoadAsync()
     {
-        Ready = EvolutionConnection.For(config, CompanyId).Ready;
+        var connection = EvolutionConnection.For(config, CompanyId);
+        Ready = connection.Ready;
+        if (User.IsInRole("Gerencia")) ConfigurationIssues = connection.ConfigurationIssues(CompanyId);
         var query = db.CustomerRecords.AsNoTracking().Where(x => x.CompanyId == CompanyId && x.StatusCatalog.Name == "Prospecto");
         if (!string.IsNullOrWhiteSpace(Search)) query = query.Where(x => x.Cellphone.Contains(Search) || (x.NameOrReference != null && x.NameOrReference.Contains(Search)));
         if (FromDate.HasValue) query = query.Where(x => x.CreatedAt >= DateTime.SpecifyKind(FromDate.Value.Date, DateTimeKind.Unspecified));
@@ -99,7 +101,7 @@ public class IndexModel(ApplicationDbContext db, IConfiguration config, WhatsApp
         }
         var campaign = new MassMessageCampaign { Id = Input.Id, CompanyId = CompanyId, UserId = Actor,
             UserName = (User.Identity?.Name ?? "")[..Math.Min(User.Identity?.Name?.Length ?? 0, 120)],
-            Name = Input.Name.Trim(), Message = Input.Message.Trim(), IntervalSeconds = Input.IntervalSeconds,
+            Name = "Envío " + clock.Now.ToString("dd/MM/yyyy HH:mm"), Message = Input.Message.Trim(), IntervalSeconds = Input.IntervalSeconds,
             SenderKey = connection.Key, Notice = $"{candidates.Count - recipients.Count} números excluidos: duplicados, inválidos o sin autorización vigente." };
         foreach (var (recipient, position) in recipients.Select((x, i) => (x, i)))
         { recipient.CampaignId = campaign.Id; recipient.Position = position; }

@@ -11,10 +11,23 @@ public sealed record EvolutionConnection(string BaseUrl, string Instance, string
         && !string.IsNullOrWhiteSpace(Instance) && !string.IsNullOrWhiteSpace(ApiKey)
         && Key.Length <= 600;
 
+    // Return configuration names only; never expose the API key in the UI.
+    public string[] ConfigurationIssues(int companyId)
+    {
+        var prefix = $"Evolution__Companies__{companyId}__";
+        var issues = new List<string>();
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !string.IsNullOrEmpty(uri.UserInfo))
+            issues.Add(prefix + "BaseUrl (URL HTTPS de Evolution)");
+        if (string.IsNullOrWhiteSpace(Instance)) issues.Add(prefix + "Instance (nombre de instancia)");
+        if (string.IsNullOrWhiteSpace(ApiKey)) issues.Add(prefix + "ApiKey (clave de la instancia)");
+        if (Key.Length > 600) issues.Add("La URL y el nombre de instancia son demasiado largos.");
+        return issues.ToArray();
+    }
+
     public static EvolutionConnection For(IConfiguration config, int companyId)
     {
         var section = config.GetSection($"Evolution:Companies:{companyId}");
-        return new(section["BaseUrl"] ?? "", section["Instance"] ?? "", section["ApiKey"] ?? "");
+        return new(section["BaseUrl"]?.Trim().TrimEnd('/') ?? "", section["Instance"]?.Trim() ?? "", section["ApiKey"]?.Trim() ?? "");
     }
 }
 

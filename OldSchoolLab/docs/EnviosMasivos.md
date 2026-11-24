@@ -32,7 +32,9 @@ No hace falta otro backend ni modificar el webhook de mensajes recibidos.
 
 ## Flujo
 
-1. Escribir un nombre, el mensaje y el intervalo en segundos (1–86400; inicial 30).
+1. Escribir el mensaje y el intervalo en segundos (1–86400; inicial 30).
+   No se solicita nombre: el historial identifica cada envío automáticamente
+   por su fecha y hora.
 2. Pegar números separados por líneas, comas o punto y coma; también seleccionar
    prospectos de la base filtrados por nombre, celular o fecha de registro.
    Cambiar los filtros conserva el mensaje y la selección. Se muestran hasta

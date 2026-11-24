@@ -4,11 +4,20 @@
 @{ ViewData["Title"] = "Envíos masivos"; }
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
     <div><h1 class="h3 mb-1">Envíos masivos</h1><p class="text-muted mb-0">Prepara tu mensaje y elige a quién enviarlo por WhatsApp.</p></div>
-    @if (Model.Campaign != null) { <a asp-page="Index" class="btn btn-outline-primary">Nueva campaña</a> }
+    @if (Model.Campaign != null) { <a asp-page="Index" class="btn btn-outline-primary">Nuevo envío</a> }
 </div>
 @if (!Model.Ready)
 {
-    <div class="alert alert-warning">Falta configurar la conexión de Evolution para esta empresa. Solicita al administrador que la habilite.</div>
+    <div class="alert alert-warning">
+        La conexión de Evolution todavía no está completa en el servidor web.
+        @if (Model.ConfigurationIssues.Length > 0)
+        {
+            <p class="mt-2 mb-1">En Easypanel, abre el servicio <strong>web OldSchoolLab</strong> y revisa estas variables faltantes o inválidas:</p>
+            <ul class="mb-2">@foreach (var issue in Model.ConfigurationIssues) { <li><code>@issue</code></li> }</ul>
+            <span>Guarda las variables y vuelve a desplegar el servicio web para aplicarlas.</span>
+        }
+        else { <span>Solicita al administrador que configure la conexión.</span> }
+    </div>
 }
 @if (Model.Campaign is { } campaign)
 {
@@ -31,7 +40,7 @@
                 @if (campaign.Status is "Draft" or "Paused")
                 { <button class="btn btn-primary" name="action" value="start" disabled="@(!Model.Ready)">@(campaign.Status == "Draft" ? "Iniciar envíos" : "Continuar con pendientes")</button> }
                 @if (campaign.Status == "Running") { <button class="btn btn-outline-primary" name="action" value="pause">Pausar</button> }
-                <button class="btn btn-outline-danger" name="action" value="cancel">Cancelar campaña</button>
+                <button class="btn btn-outline-danger" name="action" value="cancel">Cancelar envío</button>
             </form>
             <small class="text-muted mt-2">Pausar o cancelar detiene los siguientes mensajes; un envío en curso puede terminar.</small>
         }
@@ -51,13 +60,11 @@ else
     <div asp-validation-summary="All" class="text-danger mb-3"></div>
     <div class="row g-4 mb-4">
         <div class="col-lg-5"><div class="card p-4 h-100">
-            <h2 class="h5">1. Prepara tu campaña</h2>
+            <h2 class="h5">1. Prepara tu mensaje</h2>
             <form id="campaign-form" method="post" asp-page-handler="Create">
                 <input asp-for="Input.Id" type="hidden" />
                 @foreach (var selected in Model.Input.RecordIds.Except(Model.Prospects.Select(x => x.Id)))
                 { <input type="hidden" name="Input.RecordIds" value="@selected" /> }
-                <label asp-for="Input.Name" class="form-label">Nombre de la campaña</label>
-                <input asp-for="Input.Name" class="form-control mb-3" maxlength="120" required />
                 <label asp-for="Input.Message" class="form-label">Mensaje</label>
                 <textarea asp-for="Input.Message" class="form-control mb-3" rows="7" maxlength="4000" required placeholder="Escribe el mensaje que recibirán tus contactos"></textarea>
                 <label asp-for="Input.IntervalSeconds" class="form-label">Intervalo entre mensajes (segundos)</label>
@@ -97,8 +104,8 @@ else
         checks.forEach(x => x.addEventListener('change', update)); update();
     </script>
 }
-<div class="card p-4"><h2 class="h5">Mis campañas recientes</h2>
-    @if (Model.Campaigns.Count == 0) { <p class="text-muted mb-0">Todavía no has creado campañas.</p> }
+<div class="card p-4"><h2 class="h5">Mis envíos recientes</h2>
+    @if (Model.Campaigns.Count == 0) { <p class="text-muted mb-0">Todavía no has creado envíos.</p> }
     @foreach (var item in Model.Campaigns)
     { <a asp-page="Index" asp-route-CampaignId="@item.Id" class="d-flex justify-content-between border-bottom py-3 text-decoration-none"><span>@item.Name</span><span>@MassMessageRules.Label(item.Status)</span></a> }
 </div>
